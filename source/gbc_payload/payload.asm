@@ -1,10 +1,13 @@
-    INCLUDE "hardware.inc"            ; system defines
+    INCLUDE "hardware.inc"             ; system defines
 
-    SECTION "Start",ROM0[$0]        ; start vector, followed by header data applied by rgbfix.exe
+    SECTION "Start",ROM0[$0]           ; start vector, followed by header data applied by rgbfix.exe
     
 start:
+    ld  sp,$FFFE
     xor a
     ld  [rLCDC],a
+    ld  a,$10                          ; read P15 - returns a, b, select, start
+    ld  [rP1],a
 
 .copy_to_hram
     ld  hl,_VRAM+hram_code
@@ -44,12 +47,13 @@ hram_code:
 .check_logo
     ld  hl,$0104                       ; Start of the Nintendo logo
     ld  b,$30                          ; Nintendo logo's size
-    ld  c,$80+logoData-hram_code
+    ld  de,_VRAM+logoData
 .check_logo_loop
-    ld  a,[$ff00+c]
+    call $FF80+.wait_VRAM_accessible-hram_code
+    ld  a,[de]
     cp  [hl]
     jr  nz,.main_loop
-    inc c
+    inc de
     inc hl
     dec b
     jr  nz,.check_logo_loop
@@ -66,22 +70,23 @@ hram_code:
     jr  nz,.main_loop
 
 .success
-    ld  a,$10               ; read P15 - returns a, b, select, start
-    ld  [rP1],a        
-    ld  a,[rP1]             ; mandatory
-    ld  a,[rP1]
+    ld  a,[rP1]                        ; read input
     cpl
     and a,PADF_A|PADF_B|PADF_START
     jr  z,.main_loop
-    ld  hl,$0FF41    ;-STAT Register
-.wait
-    bit  1,[hl]       ; Wait until Mode is 0 or 1
-    jr   nz,.wait    
+    call $FF80+.wait_VRAM_accessible-hram_code
     xor a
     ld  [rLCDC],a
     jp  _VRAM+start.start_comunication
     
-.check_input
+.wait_VRAM_accessible
+    push hl
+    ld  hl,rSTAT
+.wait
+    bit 1,[hl]                         ; Wait until Mode is 0
+    jr  nz,.wait
+    pop hl
+    ret
 
 .wait_interrupt
     ld  a,[rIF]
