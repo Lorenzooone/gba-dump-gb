@@ -5,17 +5,23 @@
 start:
     xor a
     ld  [rLCDC],a
-    ld  hl,$8000+$17
+
+.copy_to_hram
+    ld  hl,_VRAM+.hram_section
     ld  c,$80
 .copy_hram_loop
     ld  a,[hl+]
     ld  [$ff00+c],a
     inc c
     jr nz,.copy_hram_loop
-    ld  hl,$0101
+
+.jump_to_hram
+    ld  hl,$0101                       ; chosen target byte
     ld  a,$11
-    ld  [$ff00+50],a
+    ld  [$ff00+50],a                   ; disable bootstrap code
     jp  $FF80
+
+.hram_section
     ld  a,LCDCF_ON
     ld  [rLCDC],a
 .main_loop
