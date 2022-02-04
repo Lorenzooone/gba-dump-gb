@@ -13,12 +13,10 @@ start:
     ld  a,[hl+]
     ld  [$ff00+c],a
     inc c
-    jr nz,.copy_hram_loop
+    jr  nz,.copy_hram_loop
 
 .jump_to_hram
     ld  hl,$0101                       ; chosen target byte
-    ld  a,$11
-    ld  [$ff00+50],a                   ; disable bootstrap code
     jp  $FF80
 
 .hram_section
