@@ -36,7 +36,7 @@ ALWAYS_INLINE void SWI_CpuSet(const void *src, void *dst, uint32_t len_mode)
 // BSS is by default in IWRAM
 uint16_t GBC_DISPCNT_VALUE;
 
-IWRAM_CODE void prepare_registers(void)
+void prepare_registers(void)
 {
     // Reset all I/O to default values
 
@@ -88,7 +88,7 @@ IWRAM_CODE void prepare_registers(void)
     REG_SOUNDBIAS = 0xC200; // 6 bit, 262.144kHz
 }
 
-IWRAM_CODE void switch2gbc(void)
+void switch2gbc(void)
 {
     REG_IME = 0;
     
@@ -108,14 +108,14 @@ IWRAM_CODE void switch2gbc(void)
     SWI_Halt();
 }
 
-IWRAM_CODE void simpleirq(void)
+void simpleirq(void)
 {
     REG_IME = 0;
     REG_IF = 0xFFFF;
     REG_IME = 1;
 }
 
-IWRAM_CODE void delayed_switch2gbc(void)
+void delayed_switch2gbc(void)
 {
     
     REG_IME = 0;
