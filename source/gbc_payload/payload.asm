@@ -7,11 +7,30 @@ start:
     ld  [rLCDC],a
 	ld	[rSCX],a
 	ld	[rSCY],a
-    ld  sp,$FFFE
-    ld  a,$FC
-    ld  [rBGP],a
+    ld  sp,$FFFE                       ; setup stack
     ld  a,$10                          ; read P15 - returns a, b, select, start
     ld  [rP1],a
+    ld  a,$80
+    ld  [rBCPS],a
+    ld  [rOCPS],a
+    ld  [$FF4C],a                      ; set as GBC+DMG
+
+.init_palette
+    ld  b,$10
+    ld  hl,_VRAM+palette
+.palette_loop_obj
+    ld  a,[hl+]
+    ld  [rOCPD],a
+    dec b
+    jr  nz,.palette_loop_obj
+    ld  b,$8
+.palette_loop_bg
+    ld  a,[hl+]
+    ld  [rBCPD],a
+    dec b
+    jr  nz,.palette_loop_bg
+    ld  a,$FC
+    ld  [rBGP],a
 
 .init_arrangements
     ld hl,_VRAM+emptyTile
@@ -152,6 +171,10 @@ waitArrangements:
 INCBIN "ui_arrangements_wait.bin"
 confirmedArrangements:
 INCBIN "ui_arrangements_confirmed.bin"
+
+    SECTION "Palette",ROM0
+palette:
+INCBIN "palette.bin"
 
 SECTION "Graphics",ROM0[$800]
 INCBIN "ui_graphics.bin"
