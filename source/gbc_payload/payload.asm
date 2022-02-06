@@ -58,15 +58,8 @@ start:
     jp  $FF80
     
 .start_comunication
-    ld  a,$FF
-    ld  [rNR50],a
-    ld  [rNR51],a
-    ld  [rNR52],a
-    ld  a,$CE
-    ld  [rNR12],a
-    ld  [rNR13],a
-    ld  [rNR14],a
-    jr  .start_comunication
+    xor a                              ; We're in a GB
+    jp  $0100
     
 SECTION "HRAM",ROM0
 hram_code:
