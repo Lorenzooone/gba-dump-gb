@@ -12,7 +12,7 @@ start:
     ld  [rP1],a
     ld  a,$80
     ld  [rBCPS],a
-    ld  [rBCPS],a
+    ld  [rOCPS],a
     ld  [rOBP0],a
     ld  [rOBP1],a
     ld  [$FF4C],a                      ; set as GBC+DMG
