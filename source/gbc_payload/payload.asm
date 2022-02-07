@@ -7,8 +7,8 @@ start:
     ld  [rLCDC],a
 	ld	[rSCX],a
 	ld	[rSCY],a
-    ld  sp,$FFFE                       ; setup stack
-    ld  a,$10                          ; read P15 - returns a, b, select, start
+    ld  sp,$FFFC                       ; setup stack
+    ld  a,$30                          ; read P15 - returns a, b, select, start
     ld  [rP1],a
     ld  a,$80
     ld  [rBCPS],a
@@ -60,6 +60,9 @@ start:
     jr  nz,.copy_hram_loop
 
 .jump_to_hram
+    xor a
+    ld  [$FFFD],a
+    ld  [$FFFE],a
     jp  $FF80
     
 .copy_to_hram2
@@ -86,6 +89,50 @@ start:
     ld  [rLCDC],a
     jp  $0100
     
+.ret
+    ret
+    
+.read_input
+    ld  a,$10                          ; read P15 - returns a, b, select, start
+    ld  [rP1],a
+    ld  a,[rP1]                        ; read input
+    cpl
+    and a,PADF_A|PADF_B|PADF_START|PADF_SELECT
+    jr  z,.ret
+    rla
+    ld  d,$00
+    ld  e,a
+    ld  hl,_VRAM+inputData
+    add hl,de
+    ld  a,[hl+]
+    ld  d,a
+    ld  a,[hl+]
+    ld  e,a
+    
+.update_val
+    ld  a,[$FFFD]
+    ld  h,a
+    ld  a,[$FFFE]
+    ld  l,a
+    add hl,de
+    ld  a,h
+    ld  [$FFFD],a
+    ld  a,l
+    ld  [$FFFE],a
+    ret
+    
+.render_number
+    ld  a,b
+    swap a
+    and a,$0F
+    add a,$80
+    ld  [hl+],a
+    ld  a,b
+    and a,$0F
+    add a,$80
+    ld  [hl+],a
+    ret
+
 SECTION "HRAM",ROM0
 hram_code:
     ld  a,LCDCF_ON | LCDCF_BG8000 | LCDCF_BG9C00 | LCDCF_OBJ8 | LCDCF_OBJOFF | LCDCF_WINOFF | LCDCF_BGON
@@ -98,88 +145,73 @@ hram_code:
     ld  [rIE],a
     jr  .wait_interrupt
     
-.check_logo
-    ld  hl,$0104                       ; Start of the Nintendo logo
-    ld  b,$30                          ; Nintendo logo's size
-    ld  de,_VRAM+logoData
-.check_logo_loop
-    call $FF80+.wait_VRAM_accessible-hram_code
-    ld  a,[de]
-    cp  [hl]
-    jr  nz,.failure
-    inc de
-    inc hl
-    dec b
-    jr  nz,.check_logo_loop
-    
-.check_header
-    ld  b,$19
-    ld  a,b
-.check_header_loop
-    add [hl]
-    inc l
-    dec b
-    jr  nz,.check_header_loop
-    add [hl]
-    jr  nz,.failure
-
-.success
-    ld  a,$1
+.render_and_input
     call $FF80+.change_arrangements-hram_code
-    ld  a,[rP1]                        ; read input
-    cpl
-    and a,PADF_A|PADF_B|PADF_START
-    jr  z,.main_loop
-    call $FF80+.wait_VRAM_accessible-hram_code
-    xor a
-    ld  [rLCDC],a
-    jp  _VRAM+start.copy_to_hram2
-    
-.failure
-    xor a
-    call $FF80+.change_arrangements-hram_code
+    call $FF80-hram_code+.wait_VRAM_accessible
+    call _VRAM+start.read_input
     jr  .main_loop
     
 .wait_VRAM_accessible
     push hl
     ld  hl,rSTAT
 .wait
-    bit 1,[hl]                         ; Wait until Mode is 0
+    bit 1,[hl]                         ; Wait until Mode is 0 or 1
     jr  nz,.wait
     pop hl
     ret
 
 .change_arrangements
-    and a,$1
-    jr  z,.load_waiting_arrangements
+    ld  hl,$9C00
+    ld  b,$12/2
+    ld  a,[$FFFD]
+    ld  d,a
+    ld  a,[$FFFE]
+    ld  e,a
+.change_arrangements_row
+    call $FF80-hram_code+.render_raw_number
+    ld  c,$4
+.change_arrangements_single
+    inc hl
+    call $FF80-hram_code+.render_load_number
+    dec c
+    jr  nz,.change_arrangements_single
+    push de
+    ld  de,$30
+    add hl,de
+    pop de
+    dec b
+    jr  nz,.change_arrangements_row
+    ret
     
-    ld  de,_VRAM+confirmedArrangements
-    jr  .chosen_arrangements
+.render_load_number
+    push bc
+    ld  a,[de]
+    ld  b,a
+    call $FF80-hram_code+.wait_VRAM_accessible
+    call _VRAM+start.render_number
+    inc de
+    pop bc
+    ret
     
-.load_waiting_arrangements
-    ld  de,_VRAM+waitArrangements
-    
-.chosen_arrangements
-    ld  b,$C0                          ; Arrangements' size
-    ld  hl,$9C00+$C0
-.change_arrangements_loop
-    call $FF80+.wait_VRAM_accessible-hram_code
-    ld   a,[de]
-    add  a,$80
-    ld   [hl+],a
-    inc  de
-    dec  b
-    jr   nz,.change_arrangements_loop
+.render_raw_number
+    push bc
+    ld b,d
+    call $FF80-hram_code+.wait_VRAM_accessible
+    call _VRAM+start.render_number
+    ld b,e
+    call $FF80-hram_code+.wait_VRAM_accessible
+    call _VRAM+start.render_number
+    pop bc
     ret
 
 .wait_interrupt
     ld  a,[rIF]
     and a,$1
     jr  z,.wait_interrupt
-    jr  .check_logo
+    jr  .render_and_input
     
 .end_hram_code
-ASSERT (.end_hram_code - hram_code) < ($7E - ($2 * $3)) ; calling functions consumes a bit of the available space
+ASSERT (.end_hram_code - hram_code) < ($72) ; calling functions consumes a bit of the available space
 
     SECTION "LOGO",ROM0
 logoData:
@@ -187,15 +219,15 @@ INCBIN "logo.bin"
 
     SECTION "Base_Arrangement",ROM0
 emptyTile:
-DB $67+$80
-waitArrangements:
-INCBIN "ui_arrangements_wait.bin"
-confirmedArrangements:
-INCBIN "ui_arrangements_confirmed.bin"
+DB $10+$80
+
+    SECTION "Input_Data",ROM0
+inputData:
+INCBIN "sum_values.bin"
 
     SECTION "Palette",ROM0
 palette:
 INCBIN "palette.bin"
 
 SECTION "Graphics",ROM0[$800]
-INCBIN "ui_graphics.bin"
+INCBIN "font_2bpp.bin"
