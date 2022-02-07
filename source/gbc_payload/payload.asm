@@ -49,11 +49,14 @@ start:
 
 .copy_to_hram
     ld  hl,_VRAM+hram_code
+.copy_to_hram_exec
     ld  c,$80
+    ld  b,$7F
 .copy_hram_loop
     ld  a,[hl+]
     ld  [$ff00+c],a
     inc c
+    dec b
     jr  nz,.copy_hram_loop
 
 .jump_to_hram
@@ -61,13 +64,7 @@ start:
     
 .copy_to_hram2
     ld  hl,_VRAM+.start_comunication
-    ld  c,$80
-.copy_hram_loop2
-    ld  a,[hl+]
-    ld  [$ff00+c],a
-    inc c
-    jr  nz,.copy_hram_loop
-.jump_to_hram2
+    jr  .copy_to_hram_exec
     
 .start_comunication
     xor a
