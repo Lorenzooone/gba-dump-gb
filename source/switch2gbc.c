@@ -7,6 +7,7 @@
 #include <gba.h>
 
 #include "payload_array.h"
+#define VRAM_SIZE 0x1000
 
 #define ALWAYS_INLINE __attribute__((always_inline)) static inline
 
@@ -122,7 +123,7 @@ void delayed_switch2gbc(void)
 
     // Write payload to IWRAM
     uint8_t* iwram_8 = (uint32_t*)0x03000000;
-    memset(iwram_8, 0, PAYLOAD_SIZE*4);
+    memset(iwram_8, 0, VRAM_SIZE*4);
     for (int i = 0; i < PAYLOAD_SIZE; i++)
     {
         iwram_8[i * 4] = gbc_payload[i];
