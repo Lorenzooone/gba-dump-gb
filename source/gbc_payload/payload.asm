@@ -12,7 +12,9 @@ start:
     ld  [rP1],a
     ld  a,$80
     ld  [rBCPS],a
-    ld  [rOCPS],a
+    ld  [rBCPS],a
+    ld  [rOBP0],a
+    ld  [rOBP1],a
     ld  [$FF4C],a                      ; set as GBC+DMG
 
 .init_palette
@@ -57,8 +59,25 @@ start:
 .jump_to_hram
     jp  $FF80
     
+.copy_to_hram2
+    ld  hl,_VRAM+.start_comunication
+    ld  c,$80
+.copy_hram_loop2
+    ld  a,[hl+]
+    ld  [$ff00+c],a
+    inc c
+    jr  nz,.copy_hram_loop
+.jump_to_hram2
+    
 .start_comunication
-    xor a                              ; We're in a GB
+    xor a
+    ld  [$FF70],a
+    ld  a,$04
+    ld  [$FF4C],a                      ; set as DMG
+    ld  a,$01
+    ld  [$FF6C],a                      ; set as DMG
+    ld  a,$91
+    ld  [rLCDC],a
     jp  $0100
     
 SECTION "HRAM",ROM0
@@ -108,7 +127,7 @@ hram_code:
     call $FF80+.wait_VRAM_accessible-hram_code
     xor a
     ld  [rLCDC],a
-    jp  _VRAM+start.start_comunication
+    jp  _VRAM+start.copy_to_hram2
     
 .failure
     xor a
