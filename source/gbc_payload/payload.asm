@@ -177,6 +177,9 @@ hram_code:
     and a,$1
     jr  z,.wait_interrupt
     jr  .check_logo
+    
+.end_hram_code
+ASSERT (.end_hram_code - hram_code) < ($7E - ($2 * $3)) ; calling functions consumes a bit of the available space
 
     SECTION "LOGO",ROM0
 logoData:
