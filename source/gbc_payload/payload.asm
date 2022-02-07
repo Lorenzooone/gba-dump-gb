@@ -71,11 +71,20 @@ start:
     
 .start_comunication
     xor a
-    ld  [$FF70],a
+    ld  hl,$FE00
+    ld  c,$A0
+.blank_oam
+    ld  [hl+],a
+    dec c
+    jr nz,.blank_oam
     ld  a,$04
     ld  [$FF4C],a                      ; set as DMG
     ld  a,$01
     ld  [$FF6C],a                      ; set as DMG
+    xor a
+    ld  [$FF70],a
+    ld  a,$11
+    ld  [$FF50],a                      ; set as DMG
     ld  a,$91
     ld  [rLCDC],a
     jp  $0100
