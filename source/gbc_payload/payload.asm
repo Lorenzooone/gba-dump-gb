@@ -74,6 +74,37 @@ start:
     ld  [hl+],a
     dec c
     jr nz,.blank_oam
+    ld  a,$1
+    ld  [$FF4F],a
+    ld  de,rHDMA1
+    ld  hl,hdma_data
+    ld  c,$5
+.hdma_transfer1
+    ld  a,[hl+]
+    ld  [de],a
+    inc de
+    dec c
+    jr  nz,.hdma_transfer1
+    ld  de,rHDMA1
+    ld  hl,hdma_data2
+    ld  c,$5
+.hdma_transfer2
+    ld  a,[hl+]
+    ld  [de],a
+    inc de
+    dec c
+    jr  nz,.hdma_transfer2
+    xor a
+    ld  [$FF4F],a
+    ld  de,rHDMA1
+    ld  hl,hdma_data
+    ld  c,$5
+.hdma_transfer3
+    ld  a,[hl+]
+    ld  [de],a
+    inc de
+    dec c
+    jr  nz,.hdma_transfer3
     ld  a,$04
     ld  [$FF4C],a                      ; set as DMG
     ld  a,$01
@@ -196,6 +227,11 @@ INCBIN "ui_arrangements_confirmed.bin"
     SECTION "Palette",ROM0
 palette:
 INCBIN "palette.bin"
+
+hdma_data:
+DB $D3,$00,$98,$A0,$12
+hdma_data2:
+DB $D3,$00,$80,$00,$40
 
 SECTION "Graphics",ROM0[$800]
 INCBIN "ui_graphics.bin"
