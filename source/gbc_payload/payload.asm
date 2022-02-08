@@ -132,7 +132,7 @@ start:
     and a,PADF_B|PADF_START
     jr  z,.copy_to_hram
     
-    jr  .prepare_ROM_dumper
+    jr  .copy_to_hram
     
 SECTION "HRAM_NO_BANK_SWITCHING",ROM0
 hram_code_no_bank:
