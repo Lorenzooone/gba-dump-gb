@@ -1,5 +1,11 @@
     INCLUDE "hardware.inc"             ; system defines
 
+rROM_TRANSFER EQU $1
+rSRAM_TRANSFER EQU $2
+rSLAVE_MODE EQU $80
+rOK  EQU $1
+rFAIL EQU $0
+
     SECTION "Start",ROM0[$0]           ; start vector, followed by header data applied by rgbfix.exe
     
 start:
@@ -57,16 +63,82 @@ start:
 .jump_to_hram
     jp  $FF80
     
-.start_comunication
-    ld  a,$FF
-    ld  [rNR50],a
-    ld  [rNR51],a
-    ld  [rNR52],a
-    ld  a,$CE
-    ld  [rNR12],a
-    ld  [rNR13],a
-    ld  [rNR14],a
-    jr  .start_comunication
+.send_byte
+    xor a
+    ld  [rIF],a
+    ld  a,IEF_SERIAL
+    ld  [rIE],a
+    ld  a,h
+    ld  [rSB],a
+    ld  a,rSLAVE_MODE
+    ld  [rSC],a
+.wait_interrupt
+    ld  a,[rIF]
+    and a,IEF_SERIAL
+    jr  z,.wait_interrupt
+    ld  a,[rSB]
+    ret
+    
+.prepare_ROM_dumper
+    ld  a,b
+    and a,PADF_A|PADF_START
+    jr  z,.prepare_SRAM_dumper
+.send_start
+    ld  c,rOK
+    ld  h,rROM_TRANSFER
+    call _VRAM+.send_byte              ; init transfer, ROM
+    ld  a,[$0148]
+    ld  h,a
+    cp  a,$5
+    jr  z,.check_mbc1
+    cp  a,$6
+    jr  nz,.transfer_size
+
+.check_mbc1
+    ld  a,[$0147]
+    cp  a,CART_ROM_MBC1
+    jr  z,.alter_val
+    cp  a,CART_ROM_MBC1_RAM
+    jr  z,.alter_val
+    cp  a,CART_ROM_MBC1_RAM_BAT
+    jr  z,.alter_val
+    jr  .transfer_size
+    
+.alter_val
+    ld  a,$10
+    or  a,h
+    ld  h,a
+
+.transfer_size
+    call _VRAM+.send_byte              ; send ROM size
+    cp  a,rROM_TRANSFER
+    jr  z,.transfer_first
+    ld  c,rFAIL
+.transfer_first
+    call _VRAM+.send_byte              ; get ROM size
+    cp  a,h
+    jr  z,.transfer_second
+    ld  c,rFAIL
+.transfer_second
+    ld  h,c
+    call _VRAM+.send_byte              ; check success
+    ld  a,c
+    cp  a,rFAIL
+    jr  z,.send_start
+    jr  .copy_to_hram
+
+.prepare_SRAM_dumper
+    ld  a,b
+    and a,PADF_B|PADF_START
+    jr  z,.copy_to_hram
+    
+    jr  .prepare_ROM_dumper
+    
+SECTION "HRAM_NO_BANK_SWITCHING",ROM0
+hram_code_no_bank:
+    ld  a,LCDCF_ON | LCDCF_BG8000 | LCDCF_BG9C00 | LCDCF_OBJ8 | LCDCF_OBJOFF | LCDCF_WINOFF | LCDCF_BGON
+    ld  [rLCDC],a
+    ld  hl,$0000
     
 SECTION "HRAM",ROM0
 hram_code:
@@ -111,11 +183,12 @@ hram_code:
     ld  a,[rP1]                        ; read input
     cpl
     and a,PADF_A|PADF_B|PADF_START
+    ld  b,a
     jr  z,.main_loop
     call $FF80+.wait_VRAM_accessible-hram_code
     xor a
     ld  [rLCDC],a
-    jp  _VRAM+start.start_comunication
+    jp  _VRAM+start.prepare_ROM_dumper
     
 .failure
     xor a
