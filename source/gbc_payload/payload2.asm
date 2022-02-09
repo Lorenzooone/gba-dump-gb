@@ -13,52 +13,29 @@ start:
     ld  [rLCDC],a
     ld  sp,$FFFE                       ; setup stack
 .transmission_cycle
-    call _VRAM+.send_byte_start        ; wait start, gets type
-    ld  b,a
-    call _VRAM+.wait                   ; wait for the other CPU
-    ld  a,b
-    call _VRAM+.send_byte              ; gets size
-    ld  b,a
-    call _VRAM+.wait                   ; wait for the other CPU
-    ld  a,b
-    call _VRAM+.send_byte              ; sends size back
-    ld  b,a
-    call _VRAM+.wait                   ; wait for the other CPU
-    ld  a,b
-    call _VRAM+.send_byte              ; gets result
+    call _VRAM+.send_byte              ; wait start, gets type
+    ld  h,a
     jr  .transmission_cycle
     
-    
-.send_byte_start
-    xor a
-    ld  [rIF],a
-    ld  a,IEF_SERIAL
-    ld  [rIE],a
-    xor a
-    ld  [rSB],a
-    ld  a,rMASTER_MODE
-    ld  [rSC],a
-.wait_interrupt_start
-    ld  a,[rIF]
-    and a,IEF_SERIAL
-    jr  z,.wait_interrupt_start
-
-    ld  a,[rSB]
-    cp  a,rROM_TRANSFER
-    jr  z,.success_start
-    cp  a,rSRAM_TRANSFER
-    jr  nz,.send_byte_start
-    
-.success_start
-    ret
-    
 .send_byte
-    ld  h,a
+    push bc
+    call _VRAM+.send_nybble
+    ld  b,a
+    swap b
+    call _VRAM+.send_nybble
+    or a,b
+    pop bc
+    ret
+
+.send_nybble
+    swap h
+.resend_nybble
     xor a
     ld  [rIF],a
     ld  a,IEF_SERIAL
     ld  [rIE],a
     ld  a,h
+    and a,$0F
     ld  [rSB],a
     ld  a,rMASTER_MODE
     ld  [rSC],a
@@ -66,16 +43,9 @@ start:
     ld  a,[rIF]
     and a,IEF_SERIAL
     jr  z,.wait_interrupt
-
     ld  a,[rSB]
+    ld  c,a
+    and a,$0F
+    cp  a,c
+    jr  nz,.resend_nybble
     ret
-
-.wait
-    ld  hl,$0000
-.wait_cycle
-    inc hl
-    ld  a,h
-    or  a,l
-    jr  nz,.wait_cycle
-    ret
-    

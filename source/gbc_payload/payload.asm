@@ -63,22 +63,6 @@ start:
 .jump_to_hram
     jp  $FF80
     
-.send_byte
-    xor a
-    ld  [rIF],a
-    ld  a,IEF_SERIAL
-    ld  [rIE],a
-    ld  a,h
-    ld  [rSB],a
-    ld  a,rSLAVE_MODE
-    ld  [rSC],a
-.wait_interrupt
-    ld  a,[rIF]
-    and a,IEF_SERIAL
-    jr  z,.wait_interrupt
-    ld  a,[rSB]
-    ret
-    
 .prepare_ROM_dumper
     ld  a,b
     and a,PADF_A|PADF_START
@@ -132,6 +116,34 @@ start:
     jr  z,.copy_to_hram
     
     jr  .copy_to_hram
+    
+.send_byte
+    push bc
+    call _VRAM+.send_nybble
+    ld  b,a
+    swap b
+    call _VRAM+.send_nybble
+    or a,b
+    pop bc
+    ret
+
+.send_nybble
+    xor a
+    ld  [rIF],a
+    ld  a,IEF_SERIAL
+    ld  [rIE],a
+    swap h
+    ld  a,h
+    and a,$0F
+    ld  [rSB],a
+    ld  a,rSLAVE_MODE
+    ld  [rSC],a
+.wait_interrupt
+    ld  a,[rIF]
+    and a,IEF_SERIAL
+    jr  z,.wait_interrupt
+    ld  a,[rSB]
+    ret
     
 SECTION "HRAM_NO_BANK_SWITCHING",ROM0
 hram_code_no_bank:
