@@ -2,10 +2,11 @@
 
 rROM_TRANSFER EQU $1
 rSRAM_TRANSFER EQU $2
-rMASTER_MODE EQU $81
+rMASTER_MODE EQU $83
 rOK  EQU $1
 rFAIL EQU $0
 rBASE_VAL EQU $10
+rCHECK_VAL EQU $40
 
     SECTION "Start",ROM0[$0]           ; start vector, followed by header data applied by rgbfix.exe
     
@@ -77,7 +78,6 @@ start:
     jr  nz,.copy_hram_loop
 
 .jump_to_hram
-    ld  e,$00
     ld  b,$FF
     jp  $FF80
 
@@ -94,9 +94,9 @@ hram_code:
     jr  .wait_interrupt
     
 .render_and_input
-    ld  hl,$9C00
-    ld  d,$00
-    add hl,de
+    ld  l,$00
+.continue_rendering
+    ld  h,$9C
     call $FF80-hram_code+.wait_VRAM_accessible
     ld  a,b
     swap a
@@ -107,15 +107,17 @@ hram_code:
     and a,$0F
     add a,$80
     ld  [hl+],a
-    ld  a,e
-    add a,$4
-    ld  e,a
+    inc l
+    inc l
     call $FF80-hram_code+.send_nybble
     ld  h,a
     swap h
     call $FF80-hram_code+.send_nybble
     or  a,h
-    ld   b,a
+    ld  b,a
+    ld  a,l
+    cp  a,$00
+    jr  nz,.continue_rendering
     jr  .main_loop
 
 .send_nybble
@@ -138,7 +140,10 @@ hram_code:
     ld  c,a
     and a,$F0
     cp  a,rBASE_VAL
+    jr  z,.sent_nybble
+    cp  a,rCHECK_VAL
     jr  nz,.resend_nybble
+.sent_nybble
     ld  a,c
     and a,$0F
     ret

@@ -2,10 +2,11 @@
 
 rROM_TRANSFER EQU $1
 rSRAM_TRANSFER EQU $2
-rSLAVE_MODE EQU $80
+rSLAVE_MODE EQU $82
 rOK  EQU $1
 rFAIL EQU $0
 rBASE_VAL EQU $10
+rCHECK_VAL EQU $40
 
     SECTION "Start",ROM0[$0]           ; start vector, followed by header data applied by rgbfix.exe
     
@@ -72,7 +73,8 @@ start:
     jr  z,.prepare_SRAM_dumper
 .send_start
     ld  c,rOK
-    ld  h,rROM_TRANSFER
+    ld  a,rROM_TRANSFER
+    ld  h,a
     call _VRAM+.send_byte              ; init transfer, ROM
     ld  a,[$0148]
     ld  h,a
@@ -96,32 +98,84 @@ start:
     ld  h,a
 
 .transfer_size
+    ld  a,h
     call _VRAM+.send_byte              ; send ROM size
     cp  a,rROM_TRANSFER
     jr  z,.transfer_first
     ld  c,rFAIL
 .transfer_first
+    ld  a,h
     call _VRAM+.send_byte              ; get ROM size
     cp  a,h
     jr  z,.transfer_second
     ld  c,rFAIL
 .transfer_second
     ld  h,c
-    call _VRAM+.send_byte              ; check success
+    ld  a,c
+    call _VRAM+.send_check_byte        ; check success
     ld  a,c
     cp  a,rFAIL
     jr  z,.send_start
-    jr  .copy_to_hram
+    ld  de,$0000
+.transfer_group
+    ld  c,rOK
+.transfer_single
+    ld  a,[de]
+    call _VRAM+.send_byte              ; send ROM data
+    cp  a,h
+    jr  z,.continue_transfer
+    ld  c,rFAIL
+.continue_transfer
+    ld  a,[de]
+    ld  h,a
+    inc de
+    ld  a,e
+    cp  a,$00
+    jr  nz,.transfer_single
+    call _VRAM+.send_byte              ; get last one
+    cp  a,h
+    jr  z,.continue_transfer_outer
+    ld  c,rFAIL
+.continue_transfer_outer
+    ld  h,c
+    ld  a,c
+    call _VRAM+.send_check_byte        ; check success
+    ld  a,c
+    cp  a,rFAIL
+    jr  nz,.success_group
+    dec d
+    jr  .transfer_group
+.success_group
+    ld  a,d
+    cp  a,$80
+    jr  nz,.transfer_group
+    jp  _VRAM+.copy_to_hram
 
 .prepare_SRAM_dumper
     ld  a,b
     and a,PADF_B|PADF_START
-    jr  z,.copy_to_hram
+    jp  z,_VRAM+.copy_to_hram
     
-    jr  .copy_to_hram
-    
+    jp  _VRAM+.copy_to_hram
+
+
 .send_byte
+    push hl
+    ld  l,rBASE_VAL
+    call _VRAM+.send_generic_byte
+    pop hl
+    ret
+    
+.send_check_byte
+    push hl
+    ld  l,rCHECK_VAL
+    call _VRAM+.send_generic_byte
+    pop hl
+    ret
+
+.send_generic_byte
     push bc
+    ld  h,a
     call _VRAM+.send_nybble
     ld  b,a
     swap b
@@ -134,8 +188,7 @@ start:
     swap h
     ld  a,h
     and a,$0F
-    ld  c,rBASE_VAL
-    or  a,c
+    or  a,l
     ld  [rSB],a
     ld  a,rSLAVE_MODE
     ld  [rSC],a
