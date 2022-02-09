@@ -31,9 +31,18 @@ start:
     
 .send_byte_start
     xor a
+    ld  [rIF],a
+    ld  a,IEF_SERIAL
+    ld  [rIE],a
+    xor a
     ld  [rSB],a
     ld  a,rMASTER_MODE
     ld  [rSC],a
+.wait_interrupt_start
+    ld  a,[rIF]
+    and a,IEF_SERIAL
+    jr  z,.wait_interrupt_start
+
     ld  a,[rSB]
     cp  a,rROM_TRANSFER
     jr  z,.success_start
@@ -44,9 +53,20 @@ start:
     ret
     
 .send_byte
+    ld  h,a
+    xor a
+    ld  [rIF],a
+    ld  a,IEF_SERIAL
+    ld  [rIE],a
+    ld  a,h
     ld  [rSB],a
     ld  a,rMASTER_MODE
     ld  [rSC],a
+.wait_interrupt
+    ld  a,[rIF]
+    and a,IEF_SERIAL
+    jr  z,.wait_interrupt
+
     ld  a,[rSB]
     ret
 
@@ -55,7 +75,7 @@ start:
 .wait_cycle
     inc hl
     ld  a,h
-    or  a,c
+    or  a,l
     jr  nz,.wait_cycle
     ret
     

@@ -101,8 +101,7 @@ start:
     cp  a,CART_ROM_MBC1_RAM
     jr  z,.alter_val
     cp  a,CART_ROM_MBC1_RAM_BAT
-    jr  z,.alter_val
-    jr  .transfer_size
+    jr  nz,.transfer_size
     
 .alter_val
     ld  a,$10
