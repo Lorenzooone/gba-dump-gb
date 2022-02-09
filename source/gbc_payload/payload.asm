@@ -5,6 +5,7 @@ rSRAM_TRANSFER EQU $2
 rSLAVE_MODE EQU $80
 rOK  EQU $1
 rFAIL EQU $0
+rBASE_VAL EQU $10
 
     SECTION "Start",ROM0[$0]           ; start vector, followed by header data applied by rgbfix.exe
     
@@ -20,6 +21,8 @@ start:
     ld  [rBCPS],a
     ld  [rOCPS],a
     ld  [$FF4C],a                      ; set as GBC+DMG
+    ld  a,rBASE_VAL
+    ld  [rSB],a
 
 .init_palette
     ld  b,$10
@@ -128,21 +131,24 @@ start:
     ret
 
 .send_nybble
-    xor a
-    ld  [rIF],a
-    ld  a,IEF_SERIAL
-    ld  [rIE],a
     swap h
     ld  a,h
     and a,$0F
+    ld  c,rBASE_VAL
+    or  a,c
     ld  [rSB],a
     ld  a,rSLAVE_MODE
     ld  [rSC],a
-.wait_interrupt
-    ld  a,[rIF]
-    and a,IEF_SERIAL
-    jr  z,.wait_interrupt
+.wait_end
+    ld  a,[rSC]
+    bit 7,a
+    jr  nz,.wait_end
+    ld  c,$FF
+.wait_sync
+    dec c
+    jr  nz,.wait_sync
     ld  a,[rSB]
+    and a,$0F
     ret
     
 SECTION "HRAM_NO_BANK_SWITCHING",ROM0
