@@ -118,7 +118,7 @@ hram_code:
     ld  a,l
     cp  a,$00
     jr  nz,.continue_rendering
-    jr  .main_loop
+    jr  .render_and_input
 
 .send_nybble
     swap b

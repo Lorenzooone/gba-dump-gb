@@ -7,6 +7,8 @@ rOK  EQU $1
 rFAIL EQU $0
 rBASE_VAL EQU $10
 rCHECK_VAL EQU $40
+rROM_BANK_SIZE EQU $40
+rSRAM_BANK_SIZE EQU $20
 
     SECTION "Start",ROM0[$0]           ; start vector, followed by header data applied by rgbfix.exe
     
@@ -71,33 +73,61 @@ start:
     ld  a,b
     and a,PADF_A|PADF_START
     jr  z,.prepare_SRAM_dumper
+    push bc
 .send_start
-    ld  c,rOK
     ld  a,rROM_TRANSFER
     ld  h,a
     call _VRAM+.send_byte              ; init transfer, ROM
     ld  a,[$0148]
     ld  h,a
-    cp  a,$5
-    jr  z,.check_mbc1
-    cp  a,$6
-    jr  nz,.transfer_size
 
 .check_mbc1
+    xor a
+    ld  [$FF82],a                      ; which type of function one should use
     ld  a,[$0147]
     cp  a,CART_ROM_MBC1
-    jr  z,.alter_val
-    cp  a,CART_ROM_MBC1_RAM
-    jr  z,.alter_val
-    cp  a,CART_ROM_MBC1_RAM_BAT
-    jr  nz,.transfer_size
+    jr  c,.transfer_size
+    ld  b,a
+    ld  a,CART_ROM_MBC1_RAM_BAT
+    cp  a,b
+    jr  c,.check_mbc5
+    ld  a,$1
+    ld  [$FF82],a
+    jr  .alter_val
+    
+.check_mbc5
+    ld  a,b
+    cp  a,CART_ROM_MBC5
+    jr  c,.transfer_size
+    ld  b,a
+    ld  a,CART_ROM_MBC5_RUM_RAM_BAT
+    cp  a,b
+    jr  c,.transfer_size
+    ld  a,$2
+    ld  [$FF82],a
+    jr  .transfer_size
     
 .alter_val
+    ld  a,h
+    cp  a,$5
+    jr  z,.confirmed_change
+    cp  a,$6
+    jr  nz,.transfer_size
+.confirmed_change
     ld  a,$10
     or  a,h
     ld  h,a
 
 .transfer_size
+    ld  b,$00
+    ld  c,h
+    push hl
+    ld  hl,_VRAM+romSizes
+    add hl,bc
+    ld  a,[hl]
+    pop hl
+    ld  b,a
+    ld  c,rOK
     ld  a,h
     call _VRAM+.send_byte              ; send ROM size
     cp  a,rROM_TRANSFER
@@ -116,7 +146,147 @@ start:
     ld  a,c
     cp  a,rFAIL
     jr  z,.send_start
+    xor a
+    ld  [$FF80],a
+    ld  [$FF81],a
     ld  de,$0000
+.ROM_banks_continue_transfer
+    call _VRAM+.transfer_4_ROM_banks
+    ld  a,b
+    cp  a,$00
+    jr  nz,.ROM_banks_continue_transfer
+    pop bc
+
+.prepare_SRAM_dumper
+    ld  a,b
+    and a,PADF_B|PADF_START
+    jp  z,_VRAM+.copy_to_hram
+    
+    jp  _VRAM+.copy_to_hram
+    
+.transfer_4_ROM_banks
+    ld  c,$2
+    ld  a,[$FF82]
+    cp  a,$00
+    jr  z,.transfer_4_ROM_banks_simple
+    cp  a,$02
+    jr  z,.transfer_4_ROM_banks_mbc5
+    jr  .transfer_4_ROM_banks_mbc1
+
+.transfer_4_ROM_banks_simple
+    ld  a,[$FF80]
+    ld  [$2100],a
+    inc a
+    ld  [$FF80],a
+    call _VRAM+.transfer_ROM_bank
+    ld  a,[$FF80]
+    ld  [$2100],a
+    inc a
+    ld  [$FF80],a
+    ld  d,$40
+    call _VRAM+.transfer_ROM_bank
+    ld  d,$40
+    ld  a,b
+    cp  a,$00
+    jr  z,.end_ROM_transfer_simple
+    dec c
+    jr  nz,.transfer_4_ROM_banks_simple
+    dec b
+.end_ROM_transfer_simple
+    ret
+    
+.transfer_4_ROM_banks_mbc5
+    ld  a,[$FF80]
+    ld  [$2100],a
+    inc a
+    ld  [$FF80],a
+    ld  a,[$FF81]
+    ld  [$3100],a
+    call _VRAM+.transfer_ROM_bank
+    ld  a,[$FF80]
+    ld  [$2100],a
+    inc a
+    ld  [$FF80],a
+    ld  a,[$FF81]
+    ld  [$3100],a
+    ld  a,[$FF80]
+    cp  a,$00
+    jr  nz,.keep_transfering_mbc5
+    ld  a,[$FF81]
+    inc a
+    ld  [$FF81],a
+    
+.keep_transfering_mbc5
+    ld  d,$40
+    call _VRAM+.transfer_ROM_bank
+    ld  d,$40
+    ld  a,b
+    cp  a,$00
+    jr  z,.end_ROM_transfer_mbc5
+    dec c
+    jr  nz,.transfer_4_ROM_banks_mbc5
+    dec b
+.end_ROM_transfer_mbc5
+    ret
+    
+.transfer_4_ROM_banks_mbc1
+    ld  a,[$FF80]
+    ld  [$2100],a
+    inc a
+    ld  [$FF80],a
+    ld  a,[$FF81]
+    ld  [$4000],a
+    call _VRAM+.transfer_ROM_bank
+    ld  a,[$FF80]
+    ld  [$2100],a
+    inc a
+    ld  [$FF80],a
+    ld  a,[$FF81]
+    ld  [$4000],a
+    ld  a,[$FF80]
+    cp  a,$20
+    jr  nz,.keep_transfering_mbc1
+    xor a
+    ld  [$FF80],a
+    ld  a,[$FF81]
+    inc a
+    ld  [$FF81],a
+    
+.keep_transfering_mbc1
+    ld  d,$40
+    call _VRAM+.transfer_ROM_bank
+    ld  d,$40
+    ld  a,[$FF80]
+    cp  a,$00
+    jr  nz,.past_advanced_mode
+    ld  d,$00
+    inc a
+    ld  [$6000],a
+.past_advanced_mode
+    ld  a,b
+    cp  a,$00
+    jr  z,.end_ROM_transfer_mbc1
+    dec c
+    jr  nz,.transfer_4_ROM_banks_mbc1
+    dec b
+.end_ROM_transfer_mbc1
+    ret
+
+.transfer_ROM_bank
+    push bc
+    ld  l,rROM_BANK_SIZE
+    call _VRAM+.transfer_bank
+    pop bc
+    ret
+
+.transfer_SRAM_bank
+    push bc
+    ld  l,rSRAM_BANK_SIZE
+    call _VRAM+.transfer_bank
+    pop bc
+    ret
+
+.transfer_bank
 .transfer_group
     ld  c,rOK
 .transfer_single
@@ -146,18 +316,10 @@ start:
     dec d
     jr  .transfer_group
 .success_group
-    ld  a,d
-    cp  a,$80
+    dec l
     jr  nz,.transfer_group
-    jp  _VRAM+.copy_to_hram
-
-.prepare_SRAM_dumper
-    ld  a,b
-    and a,PADF_B|PADF_START
-    jp  z,_VRAM+.copy_to_hram
-    
-    jp  _VRAM+.copy_to_hram
-
+.success_bank
+    ret
 
 .send_byte
     push hl
@@ -306,6 +468,10 @@ hram_code:
     SECTION "LOGO",ROM0
 logoData:
 INCBIN "logo.bin"
+
+    SECTION "ROM_SIZES",ROM0
+romSizes:
+DB $00,$01,$02,$04,$08,$10,$20,$40,$80,$00,$00,$00,$00,$00,$00,$00,$00,$00,$12,$14,$18,$90,$A0
 
     SECTION "Base_Arrangement",ROM0
 emptyTile:
