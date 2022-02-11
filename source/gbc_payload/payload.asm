@@ -72,11 +72,10 @@ start:
 .prepare_ROM_dumper
     ld  a,b
     and a,PADF_A|PADF_START
-    jr  z,.prepare_SRAM_dumper
+    jp  z,_VRAM+.prepare_SRAM_dumper
     push bc
 .send_start
     ld  a,rROM_TRANSFER
-    ld  h,a
     call _VRAM+.send_byte              ; init transfer, ROM
     ld  a,[$0148]
     ld  h,a
@@ -85,42 +84,31 @@ start:
     xor a
     ld  [$FF82],a                      ; which type of function one should use
     ld  a,[$0147]
+    ld  b,a
     cp  a,CART_ROM_MBC1
     jr  c,.transfer_size
-    ld  b,a
     ld  a,CART_ROM_MBC1_RAM_BAT
     cp  a,b
     jr  c,.check_mbc5
     ld  a,$1
     ld  [$FF82],a
-    jr  .alter_val
+    jr  .transfer_size
     
 .check_mbc5
     ld  a,b
     cp  a,CART_ROM_MBC5
     jr  c,.transfer_size
-    ld  b,a
     ld  a,CART_ROM_MBC5_RUM_RAM_BAT
     cp  a,b
     jr  c,.transfer_size
     ld  a,$2
     ld  [$FF82],a
-    jr  .transfer_size
-    
-.alter_val
-    ld  a,h
-    cp  a,$5
-    jr  z,.confirmed_change
-    cp  a,$6
-    jr  nz,.transfer_size
-.confirmed_change
-    ld  a,$10
-    or  a,h
-    ld  h,a
 
 .transfer_size
     ld  b,$00
-    ld  c,h
+    ld  a,h
+    and a,$1F
+    ld  c,a
     push hl
     ld  hl,_VRAM+romSizes
     add hl,bc
@@ -471,7 +459,7 @@ INCBIN "logo.bin"
 
     SECTION "ROM_SIZES",ROM0
 romSizes:
-DB $00,$01,$02,$04,$08,$10,$20,$40,$80,$00,$00,$00,$00,$00,$00,$00,$00,$00,$12,$14,$18,$90,$A0
+DB $00,$01,$02,$04,$08,$10,$20,$40,$80,$00,$00,$00,$00,$00,$00,$00,$00,$00,$12,$14,$18
 
     SECTION "Base_Arrangement",ROM0
 emptyTile:
