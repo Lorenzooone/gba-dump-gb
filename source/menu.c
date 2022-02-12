@@ -292,7 +292,7 @@ int main(void)
 
     // User configuration menu
 
-    enter_menu();
+    //enter_menu();
 
     update_affine_registers();
     update_mosaic();
