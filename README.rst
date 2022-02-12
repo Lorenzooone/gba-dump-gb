@@ -1,38 +1,10 @@
-gba-switch-to-gbc
+gba-dump-gb
 =================
 
-Routine to switch a GBA into GBC mode by software!
+Routine to switch a GBA into GBC mode by software and to then dump cartridges' contents!
 
-The source code can be found here:
-
-https://github.com/AntonioND/gba-switch-to-gbc
-
-A video that demonstrates the code is here:
-
-https://www.youtube.com/watch?v=pcIQQPOkBGI
-
-I dissasembled the GBA BIOS and looked for the instruction that checks
-``DISPCNT`` bit 15 (at address ``0x00001958``). If a GBC cart is detected (
-impossible in real hardware) a subroutine is called. Most of it is just a screen
-fade in, but there is some information about the registers configuration needed
-to switch to GBC mode.
-
-It can even modify some other registers to change the GBC screen! It can apply
-an affine transformation, or apply mossaic effect... There are some things to
-test in the code.
-
-Note that the "stretch screen" mode you enable by pressing L seems to bypass all
-the transformation registers, but effects like mosaic and greenswap are still
-applied in stretch mode.
-
-Note that, as soon as a GBC cartridge is inserted in the GBA, EWRAM can't be
-used. This means the function that switches to GBC mode (and any function that
-is used to wait before switching) need to be placed in IWRAM, as well as any
-variable used by the functions.
-
-It should work in GBA, GBA SP, GB Micro, but NOT in DS. If I remember correctly,
-the ARM7 is different in NDS. GBA mode in DS is just a compatibility mode, but
-in GBA, GBA SP and GB Micro the SoC includes the GBC CPU as well.
+Switch to GBC mode using gba-switch-to-gbc_mb.gba, then properly insert a cartridge
+and you'll be able to dump either ROM or SRAM.
 
 The results are:
 
@@ -44,13 +16,30 @@ The results are:
   loop at the end of the code.
 - GB Player: It works.
 
-It seems that the GB Micro in GBC mode can't read anything from the cart. I have
-to do more tests, but I've tried a cartridge that runs at 3.3V and the GB Micro
-doesn't load garbage in the Nintendo logo like the real GBC or MGB.
-
 To build it, you need devkitPro.
 
-My website: www.skylyrac.net/
+The actual GBA ROM can be built using make_sender.ps1.
+
+make_receiver.ps1 will make a dummy receiver which can be used to test the sender.
+
+Technical details
+=================
+
+The Dumper sends "single byte"s in 2 nybble transfers (masked with 0x10),
+and it expects to receive the "single byte" it sent during the next "single byte" transfer.
+Failing to do so will cause the transfer to restart from a checkpoint at the first occasion
+by sending a FAIL. OK and FAIL are masked with 0x40. Details below.
+
+First the GBC payload sends information about the transfer: whether it will be a ROM
+one or a SRAM one. After that, it sends the size and does an extra transfer to check
+that the receiver got the right size. If all went well, it sends an OK and starts
+the actual transfer.
+
+During the transfer, the dumper will send 0x100 "single byte"s and, if all went well,
+send an OK and continue on to the next batch of 0x100 "single byte"s.
+
+Credits
+=================
 
 Thanks to:
 
@@ -60,29 +49,9 @@ Thanks to:
 
 - Extrems, for discovering that the code needs to be in IWRAM to actually work.
 
-GBATEK information
-------------------
+- AntonioND, the original gba-switch-to-gbc ROM this has been forked from:
 
-Taken from here: https://problemkaputt.de/gbatek.htm#auxgbagamepakbus
+  https://github.com/AntonioND/gba-switch-to-gbc
 
-    8bit-Gamepak-Switch (GBA, GBA SP only) (not DS)
-
-    A small switch is located inside of the cartridge slot, the switch is pushed
-    down when an 8bit cartridge is inserted, it is released when a GBA cartridge
-    is inserted (or if no cartridge is inserted).
-
-    The switch mechanically controls whether VDD3 or VDD5 are output at VDD35;
-    ie. in GBA mode 3V power supply/signals are used for the cartridge slot and
-    link port, while in 8bit mode 5V are used.
-
-    The switch additionally drags IN35 to 3V when an 8bit cart is inserted, the
-    current state of IN35 can be determined in GBA mode via Port 4000204h
-    (WAITCNT), if the switch is pushed, then CGB mode can be activated via Port
-    4000000h (DISPCNT.3), this bit can be set ONLY by opcodes in BIOS region
-    (eg. via CpuSet SWI function).
-
-    In 8bit mode, the cartridge bus works much like for GBA SRAM, however, the
-    8bit /CS signal is expected at Pin 5, while GBA SRAM /CS2 at Pin 30 is
-    interpreted as /RESET signal by the 8bit MBC chip (if any). In practice,
-    this appears to result in 00h being received as data when attempting to
-    read-out 8bit cartridges from inside of GBA mode.
+- ShinyQuagsire, the idea for the project.
+  

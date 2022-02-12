@@ -8,7 +8,9 @@ rFAIL EQU $0
 rBASE_VAL EQU $10
 rCHECK_VAL EQU $40
 rROM_BANK_SIZE EQU $40
-rSRAM_BANK_SIZE EQU $20
+rSRAM_SUB_BANK_SIZE EQU $8
+rSRAM_MBC2_BANK_SIZE EQU $2
+CART_RUMBLE_ENABLE EQU $8
 
     SECTION "Start",ROM0[$0]           ; start vector, followed by header data applied by rgbfix.exe
     
@@ -74,37 +76,38 @@ start:
     and a,PADF_A|PADF_START
     jp  z,_VRAM+.prepare_SRAM_dumper
     push bc
-.send_start
+    
+.send_start_rom
     ld  a,rROM_TRANSFER
     call _VRAM+.send_byte              ; init transfer, ROM
     ld  a,[$0148]
     ld  h,a
 
-.check_mbc1
+.check_mbc1_rom
     xor a
     ld  [$FF82],a                      ; which type of function one should use
     ld  a,[$0147]
     ld  b,a
     cp  a,CART_ROM_MBC1
-    jr  c,.transfer_size
+    jr  c,.transfer_size_rom
     ld  a,CART_ROM_MBC1_RAM_BAT
     cp  a,b
-    jr  c,.check_mbc5
-    ld  a,$1
+    jr  c,.check_mbc5_rom
+    ld  a,$1                           ; MBC1 has separate ROM addressing bits
     ld  [$FF82],a
-    jr  .transfer_size
+    jr  .transfer_size_rom
     
-.check_mbc5
+.check_mbc5_rom
     ld  a,b
     cp  a,CART_ROM_MBC5
-    jr  c,.transfer_size
+    jr  c,.transfer_size_rom
     ld  a,CART_ROM_MBC5_RUM_RAM_BAT
     cp  a,b
-    jr  c,.transfer_size
-    ld  a,$2
+    jr  c,.transfer_size_rom
+    ld  a,$2                           ; MBC5 can access up to 0x1E0 different banks
     ld  [$FF82],a
 
-.transfer_size
+.transfer_size_rom
     ld  b,$00
     ld  a,h
     and a,$1F
@@ -119,21 +122,21 @@ start:
     ld  a,h
     call _VRAM+.send_byte              ; send ROM size
     cp  a,rROM_TRANSFER
-    jr  z,.transfer_first
+    jr  z,.transfer_first_rom
     ld  c,rFAIL
-.transfer_first
+.transfer_first_rom
     ld  a,h
     call _VRAM+.send_byte              ; get ROM size
     cp  a,h
-    jr  z,.transfer_second
+    jr  z,.transfer_second_rom
     ld  c,rFAIL
-.transfer_second
+.transfer_second_rom
     ld  h,c
     ld  a,c
     call _VRAM+.send_check_byte        ; check success
     ld  a,c
     cp  a,rFAIL
-    jr  z,.send_start
+    jr  z,.send_start_rom
     xor a
     ld  [$FF80],a
     ld  [$FF81],a
@@ -148,9 +151,167 @@ start:
 .prepare_SRAM_dumper
     ld  a,b
     and a,PADF_B|PADF_START
-    jp  z,_VRAM+.copy_to_hram
+    jp  z,_VRAM+.SRAM_banks_transfer_end
+
+.send_start_sram
+    ld  a,rSRAM_TRANSFER
+    call _VRAM+.send_byte              ; init transfer, SRAM
+    ld  a,[$0149]
+    ld  h,a
+
+.check_mbc1_sram
+    xor a
+    ld  [$FF82],a                      ; which type of function one should use
+    ld  a,[$0147]
+    ld  b,a
+    cp  a,CART_ROM_MBC1
+    jr  c,.transfer_size_sram
+    ld  a,CART_ROM_MBC1_RAM_BAT
+    cp  a,b
+    jr  c,.check_mbc5_rumble_sram
+    ld  a,$1                           ; enable SRAM advanced banking mode
+    ld  [$6000],a
+    jr  .transfer_size_sram
+
+.check_mbc2_sram
+    ld  a,b
+    cp  a,CART_ROM_MBC2
+    jr  c,.transfer_size_sram
+    ld  a,CART_ROM_MBC2_BAT
+    cp  a,b
+    jr  c,.check_mbc5_rumble_sram
+    ld  a,$1
+    ld  h,a                            ; MBC2 carts have 0x200 SRAM bytes of 4 bits
+    ld  [$FF82],a
+    jr  .transfer_size_sram
     
+.check_mbc5_rumble_sram
+    ld  a,b
+    cp  a,CART_ROM_MBC5_RUM
+    jr  c,.transfer_size_sram
+    ld  a,CART_ROM_MBC5_RUM_RAM_BAT
+    cp  a,b
+    jr  c,.transfer_size_sram
+    ld  a,$2                           ; Rumble breaks the SRAM addressing bits in half
+    ld  [$FF82],a
+
+.transfer_size_sram
+    ld  b,$00
+    ld  a,h
+    and a,$07
+    ld  c,a
+    push hl
+    ld  hl,_VRAM+sramSizes
+    add hl,bc
+    ld  a,[hl]
+    pop hl
+    ld  b,a
+    ld  c,rOK
+    ld  a,h
+    call _VRAM+.send_byte              ; send SRAM size
+    cp  a,rSRAM_TRANSFER
+    jr  z,.transfer_first_sram
+    ld  c,rFAIL
+.transfer_first_sram
+    ld  a,h
+    call _VRAM+.send_byte              ; get SRAM size
+    cp  a,h
+    jr  z,.transfer_second_sram
+    ld  c,rFAIL
+.transfer_second_sram
+    ld  h,c
+    ld  a,c
+    call _VRAM+.send_check_byte        ; check success
+    ld  a,c
+    cp  a,rFAIL
+    jr  z,.send_start_sram
+    xor a
+    ld  [$FF80],a
+    ld  [$FF81],a
+    ld  a,b
+    cp  a,$FF
+    jr  z,.SRAM_banks_transfer_end
+    ld  e,$00
+.SRAM_banks_continue_transfer
+    call _VRAM+.transfer_4_SRAM_sub_banks
+    ld  a,b
+    cp  a,$00
+    jr  nz,.SRAM_banks_continue_transfer
+.SRAM_banks_transfer_end
+
     jp  _VRAM+.copy_to_hram
+
+.transfer_4_SRAM_sub_banks
+    ld  c,$4
+    ld  a,[$FF82]
+    cp  a,$00
+    jr  z,.transfer_4_SRAM_sub_banks_simple
+    cp  a,$02
+    jr  z,.transfer_4_SRAM_sub_banks_mbc5_rumble
+    jr  .transfer_SRAM_sub_bank_mbc2
+
+.transfer_4_SRAM_sub_banks_simple
+    ld  a,[$FF80]
+    ld  [$4000],a
+    inc a
+    ld  [$FF80],a
+    ld  d,$A0
+    ld  a,CART_RAM_ENABLE
+    ld  [$0000],a
+.transfer_4_SRAM_sub_banks_simple_loop
+    call _VRAM+.transfer_SRAM_sub_bank
+    ld  a,b
+    cp  a,$00
+    jr  z,.end_SRAM_transfer_simple
+    dec c
+    jr  nz,.transfer_4_SRAM_sub_banks_simple_loop
+    dec b
+.end_SRAM_transfer_simple
+    xor a
+    ld  [$0000],a                      ; disable cart SRAM to avoid damage
+    ret
+    
+.transfer_SRAM_sub_bank_mbc2
+    ld  d,$A0
+    ld  a,CART_RAM_ENABLE
+    ld  [$0000],a
+    call _VRAM+.transfer_SRAM_MBC2_bank
+    ld  b,$00
+    xor a
+    ld  [$0000],a                      ; disable cart SRAM to avoid damage
+    ret
+    
+.transfer_4_SRAM_sub_banks_mbc5_rumble
+    ld  a,[$FF80]
+    ld  d,a
+    ld  a,[$FF81]
+    or  a,d
+    ld  [$4000],a
+    ld  a,[$FF80]
+    inc a
+    cp  a,CART_RUMBLE_ENABLE
+    jr  nz,.save_next_sram_rumble_bank
+    ld  a,[$FF81]
+    add a,CART_RUMBLE_ENABLE*2
+    ld  [$FF81],a
+    xor a
+.save_next_sram_rumble_bank
+    ld  [$FF80],a
+    ld  d,$A0
+    ld  a,CART_RAM_ENABLE
+    ld  [$0000],a
+.transfer_4_SRAM_sub_banks_mbc5_rumble_loop
+    call _VRAM+.transfer_SRAM_sub_bank
+    ld  a,b
+    cp  a,$00
+    jr  z,.end_transfer_4_SRAM_sub_banks_mbc5_rumble
+    dec c
+    jr  nz,.transfer_4_SRAM_sub_banks_mbc5_rumble_loop
+    dec b
+.end_transfer_4_SRAM_sub_banks_mbc5_rumble
+    xor a
+    ld  [$0000],a                      ; disable cart SRAM to avoid damage
+    ret
     
 .transfer_4_ROM_banks
     ld  c,$2
@@ -267,9 +428,16 @@ start:
     pop bc
     ret
 
-.transfer_SRAM_bank
+.transfer_SRAM_sub_bank
     push bc
-    ld  l,rSRAM_BANK_SIZE
+    ld  l,rSRAM_SUB_BANK_SIZE
+    call _VRAM+.transfer_bank
+    pop bc
+    ret
+    
+.transfer_SRAM_MBC2_bank
+    push bc
+    ld  l,rSRAM_MBC2_BANK_SIZE
     call _VRAM+.transfer_bank
     pop bc
     ret
@@ -460,6 +628,10 @@ INCBIN "logo.bin"
     SECTION "ROM_SIZES",ROM0
 romSizes:
 DB $00,$01,$02,$04,$08,$10,$20,$40,$80,$00,$00,$00,$00,$00,$00,$00,$00,$00,$12,$14,$18
+
+    SECTION "SRAM_SIZES",ROM0
+sramSizes:
+DB $FF,$00,$01,$04,$10,$08
 
     SECTION "Base_Arrangement",ROM0
 emptyTile:
