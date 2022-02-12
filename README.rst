@@ -25,7 +25,7 @@ make_receiver.ps1 will make a dummy receiver which can be used to test the sende
 Technical details
 =================
 
-The Dumper sends "single byte"s in 2 nybble transfers (masked with 0x10),
+The Dumper (payload.asm) sends "single byte"s in 2 nybble transfers (masked with 0x10),
 and it expects to receive the "single byte" it sent during the next "single byte" transfer.
 Failing to do so will cause the transfer to restart from a checkpoint at the first occasion
 by sending a FAIL. OK and FAIL are masked with 0x40. Details below.
@@ -38,6 +38,8 @@ the actual transfer.
 During the transfer, the dumper will send 0x100 "single byte"s and do an extra transfer
 to also check the last byte it sent. If all went well, it sends an OK and continues on
 to the next batch of 0x100 "single byte"s.
+
+payload2.asm contains a dummy receiver which sends back what it just received.
 
 Credits
 =================
