@@ -1,7 +1,7 @@
 gba-dump-gb
 =================
 
-Routine to switch a GBA into GBC mode by software and to then dump cartridges' contents!
+Routine to switch a GBA into GBC mode by software and to then dump cartridges' contents through the link cable!
 
 Switch to GBC mode using gba-switch-to-gbc_mb.gba, then properly insert a cartridge
 and you'll be able to dump either ROM or SRAM of GB/GBC games.
