@@ -47,6 +47,14 @@ start:
     or  a,e
     jr  nz,.arrangements_loop
 
+    xor a
+    ld  hl,$FE00
+    ld  c,$A0
+.blank_oam_start
+    ld  [hl+],a
+    dec c
+    jr nz,.blank_oam_start
+
 .copy_to_hram
     ld  hl,_VRAM+hram_code
 .copy_to_hram_exec
@@ -63,10 +71,6 @@ start:
     jp  $FF80
     
 .copy_to_hram2
-    ld  hl,_VRAM+.start_comunication
-    jr  .copy_to_hram_exec
-    
-.start_comunication
     xor a
     ld  hl,$FE00
     ld  c,$A0
@@ -74,10 +78,16 @@ start:
     ld  [hl+],a
     dec c
     jr nz,.blank_oam
+    ld  hl,_VRAM+.start_comunication
+    jr  .copy_to_hram_exec
+    
+.start_comunication
+    ld  a,$02
+    ld  [$FF70],a
     ld  a,$1
     ld  [$FF4F],a
     ld  de,rHDMA1
-    ld  hl,hdma_data
+    ld  hl,_VRAM+hdma_data
     ld  c,$5
 .hdma_transfer1
     ld  a,[hl+]
@@ -86,7 +96,7 @@ start:
     dec c
     jr  nz,.hdma_transfer1
     ld  de,rHDMA1
-    ld  hl,hdma_data2
+    ld  hl,_VRAM+hdma_data2
     ld  c,$5
 .hdma_transfer2
     ld  a,[hl+]
@@ -97,7 +107,7 @@ start:
     xor a
     ld  [$FF4F],a
     ld  de,rHDMA1
-    ld  hl,hdma_data
+    ld  hl,_VRAM+hdma_data
     ld  c,$5
 .hdma_transfer3
     ld  a,[hl+]
@@ -105,12 +115,31 @@ start:
     inc de
     dec c
     jr  nz,.hdma_transfer3
+    xor a
+    ld  [$FF70],a
+    ld  hl,$C000
+.reset_wram
+    ld  [hl+],a
+    bit 5,h
+    jr  z,.reset_wram
+    ld  a,$1
+    ld  [$FF4F],a
+    xor a
+    ld  hl,$8000
+.reset_vram
+    ld  [hl+],a
+    bit 5,h
+    jr  z,.reset_vram
+    ld  [$FF4F],a
+    ld  hl,$8000
+.reset_vram0
+    ld  [hl+],a
+    bit 5,h
+    jr  z,.reset_vram0
     ld  a,$04
     ld  [$FF4C],a                      ; set as DMG
     ld  a,$01
     ld  [$FF6C],a                      ; set as DMG
-    xor a
-    ld  [$FF70],a
     ld  a,$11
     ld  [$FF50],a                      ; set as DMG
     ld  a,$91
@@ -119,7 +148,9 @@ start:
     
 SECTION "HRAM",ROM0
 hram_code:
-    ld  a,LCDCF_ON | LCDCF_BG8000 | LCDCF_BG9C00 | LCDCF_OBJ8 | LCDCF_OBJOFF | LCDCF_WINOFF | LCDCF_BGON
+    ld  a,(_VRAM+testSprite)/$100
+    ld  [$FF46],a
+    ld  a,LCDCF_ON | LCDCF_BG8000 | LCDCF_BG9C00 | LCDCF_OBJ8 | LCDCF_OBJON | LCDCF_WINOFF | LCDCF_BGON
     ld  [rLCDC],a
 .main_loop
 .inner_loop
@@ -127,7 +158,10 @@ hram_code:
     ld  [rIF],a
     inc a
     ld  [rIE],a
-    jr  .wait_interrupt
+.wait_interrupt
+    ld  a,[rIF]
+    and a,$1
+    jr  z,.wait_interrupt
     
 .check_logo
     ld  hl,$0104                       ; Start of the Nintendo logo
@@ -202,12 +236,6 @@ hram_code:
     dec  b
     jr   nz,.change_arrangements_loop
     ret
-
-.wait_interrupt
-    ld  a,[rIF]
-    and a,$1
-    jr  z,.wait_interrupt
-    jr  .check_logo
     
 .end_hram_code
 ASSERT (.end_hram_code - hram_code) < ($7E - ($2 * $3)) ; calling functions consumes a bit of the available space
@@ -235,3 +263,7 @@ DB $D3,$00,$80,$00,$40
 
 SECTION "Graphics",ROM0[$800]
 INCBIN "ui_graphics.bin"
+
+SECTION "Srites",ROM0[$700]
+testSprite:
+DB $6c,$48,$80,$00,$6c,$50,$81,$00,$74,$48,$82,$00,$74,$50,$83,$00
