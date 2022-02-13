@@ -9,6 +9,7 @@
 #include "payload_array.h"
 #define VRAM_SIZE 0x1000
 
+#define REG_VCOUNT *(vu16*)0x04000006
 #define ALWAYS_INLINE __attribute__((always_inline)) static inline
 
 extern void RAM_stub(void);
@@ -89,8 +90,53 @@ void prepare_registers(void)
     REG_SOUNDBIAS = 0xC200; // 6 bit, 262.144kHz
 }
 
-void switch2gbc(void)
+void simpleirq(void)
 {
+    REG_IME = 0;
+    REG_IF = 0xFFFF;
+    REG_IME = 1;
+}
+
+IWRAM_CODE void print_switching_info(void)
+{
+    consoleDemoInit();
+    iprintf("Swap cartridges now!\n");
+    iprintf("\n");
+    iprintf("Waiting 10 seconds...\n");
+}
+
+IWRAM_CODE void delayed_switch2gbc(void)
+{    
+    REG_IME = 0;
+
+    // Write payload to IWRAM
+    uint8_t* iwram_8 = (uint32_t*)0x03000000;
+    memset(iwram_8, 0, VRAM_SIZE*4);
+    for (int i = 0; i < PAYLOAD_SIZE; i++)
+    {
+        iwram_8[i * 4] = gbc_payload[i];
+    }
+    
+    uint8_t* wram = (uint32_t*)0x02000000;
+    wram[0] = 0xC3;
+    wram[2] = 0x00;
+    wram[4] = 0x80;
+
+    // VBlank per second about 60
+    //for (int i = 0; i < 60 * 10; i++)
+    //{   
+    //    while(REG_VCOUNT >= 160);   // wait till VDraw
+    //    while(REG_VCOUNT < 160);    // wait till VBlank
+    //}
+
+    BG_PALETTE[0] = 0x0000;
+    BG_PALETTE[1] = 0x7FFF;
+    
+    
+    REG_IME = 0;
+    REG_IE = 0;
+    REG_IF = 0xFFFF;
+
     REG_IME = 0;
     
     // Write 0x0408 to DISPCNT = 0x0408: Mode 0, GBC mode enabled, BG2 enabled
@@ -107,35 +153,4 @@ void switch2gbc(void)
     // BIOS swapped boot, white screen  no jingle
     *(vu32*)0x4000800 = 0x0D000000 | 0x20 | 8;
     SWI_Halt();
-}
-
-void simpleirq(void)
-{
-    REG_IME = 0;
-    REG_IF = 0xFFFF;
-    REG_IME = 1;
-}
-
-void delayed_switch2gbc(void)
-{
-    
-    REG_IME = 0;
-
-    // Write payload to IWRAM
-    uint8_t* iwram_8 = (uint32_t*)0x03000000;
-    memset(iwram_8, 0, VRAM_SIZE*4);
-    for (int i = 0; i < PAYLOAD_SIZE; i++)
-    {
-        iwram_8[i * 4] = gbc_payload[i];
-    }
-
-    BG_PALETTE[0] = 0x0000;
-    BG_PALETTE[1] = 0x7FFF;
-    
-    
-    REG_IME = 0;
-    REG_IE = 0;
-    REG_IF = 0xFFFF;
-
-    switch2gbc();
 }

@@ -1,10 +1,32 @@
     INCLUDE "hardware.inc"             ; system defines
 
-    SECTION "Start",ROM0[$0]           ; start vector, followed by header data applied by rgbfix.exe
-    
-start:
+SECTION "Init", ROM0[$0]
     xor a
     ld  [rLCDC],a
+    jp  _VRAM+start
+
+    SECTION "Entrypoint", ROM0[$100]
+    nop
+    jp  launch
+    
+    SECTION "Launcher", ROM0[$150]
+launch:
+    xor a
+    ld  [rLCDC],a
+    ld  hl,$8000
+    ld  de,0
+.copy_to_vram
+    ld  a,[de]
+    inc de
+    ld  [hl+],a
+    ld  a,h
+    cp  a,$90
+    jr  nz,.copy_to_vram
+    jp  _VRAM
+
+    SECTION "Start",ROM0[$200]         ; start vector, followed by header data applied by rgbfix.exe
+    
+start:
 	ld	[rSCX],a
 	ld	[rSCY],a
     ld  sp,$FFFE                       ; setup stack
@@ -140,13 +162,13 @@ start:
     ld  [$FF4C],a                      ; set as DMG
     ld  a,$01
     ld  [$FF6C],a                      ; set as DMG
+    ld  b,$1
     ld  a,$11
     ld  [$FF50],a                      ; set as DMG
     ld  a,$91
     ld  [rLCDC],a
     jp  $0100
     
-SECTION "HRAM",ROM0
 hram_code:
     ld  a,(_VRAM+testSprite)/$100
     ld  [$FF46],a
@@ -240,11 +262,9 @@ hram_code:
 .end_hram_code
 ASSERT (.end_hram_code - hram_code) < ($7E - ($2 * $3)) ; calling functions consumes a bit of the available space
 
-    SECTION "LOGO",ROM0
 logoData:
 INCBIN "logo.bin"
 
-    SECTION "Base_Arrangement",ROM0
 emptyTile:
 DB $67+$80
 waitArrangements:
@@ -252,7 +272,6 @@ INCBIN "ui_arrangements_wait.bin"
 confirmedArrangements:
 INCBIN "ui_arrangements_confirmed.bin"
 
-    SECTION "Palette",ROM0
 palette:
 INCBIN "palette.bin"
 
