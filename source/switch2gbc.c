@@ -35,9 +35,6 @@ ALWAYS_INLINE void SWI_CpuSet(const void *src, void *dst, uint32_t len_mode)
     );
 }
 
-// BSS is by default in IWRAM
-uint16_t GBC_DISPCNT_VALUE;
-
 void prepare_registers(void)
 {
     // Reset all I/O to default values
@@ -135,11 +132,12 @@ IWRAM_CODE void delayed_switch2gbc(void)
     REG_IME = 0;
     
     // Write 0x0408 to DISPCNT = 0x0408: Mode 0, GBC mode enabled, BG2 enabled
-    GBC_DISPCNT_VALUE = 0x0408;
+    uint16_t* GBC_DISPCNT_VALUE = (uint16_t*)0x6007FFC;
+    *GBC_DISPCNT_VALUE = 0x408;
 
     // GBC mode bit can only be modified from BIOS, like from inside CpuSet()
     // Copy 1 halfword, 16 bit mode
-    SWI_CpuSet(&GBC_DISPCNT_VALUE, (void *)(REG_BASE + 0), 1);
+    SWI_CpuSet(GBC_DISPCNT_VALUE, (void *)(REG_BASE + 0), 1);
     
     // Normal boot, black screen with jingle
     //*(vu32*)0x4000800 = 0x0D000000 | 0x20;
