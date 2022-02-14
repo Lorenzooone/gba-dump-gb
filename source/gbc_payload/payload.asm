@@ -63,7 +63,7 @@ start:
     ld  de,$0000
     jp  $FF80
 
-SECTION "HRAM",ROM0[$600]
+SECTION "HRAM",ROM0
 hram_code:
     ld  a,LCDCF_ON | LCDCF_BG8000 | LCDCF_BG9C00 | LCDCF_OBJ8 | LCDCF_OBJOFF | LCDCF_WINOFF | LCDCF_BGON
     ld  [rLCDC],a

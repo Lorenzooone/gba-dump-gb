@@ -14,6 +14,7 @@
 // --------------------------------------------------------------------
 
 #define PACKED __attribute__((packed))
+#define ALWAYS_INLINE __attribute__((always_inline)) static inline
 
 // Struct that holds the input to SWI_BgAffineSet()
 typedef struct PACKED {
@@ -280,6 +281,26 @@ void enter_menu(void)
 
 // --------------------------------------------------------------------
 
+ALWAYS_INLINE void run_in_VRAM(const void *src, uint32_t len_mode)
+{
+    register uint32_t src_ asm("r0") = (uint32_t)src-1;
+    register uint32_t dst_ asm("r1") = (uint32_t)0x6007000;
+    register uint32_t len_mode_ asm("r2") = len_mode;
+
+    asm volatile(
+        "swi 0x0B" ::
+        "r"(src_), "r"(dst_), "r"(len_mode_) :
+        "r3", "memory"
+    );
+    
+    asm volatile(
+        "add r1,#1\n"
+        "bx r1"
+    );
+}
+
+// --------------------------------------------------------------------
+
 int main(void)
 {
     irqInit();
@@ -292,7 +313,7 @@ int main(void)
 
     // User configuration menu
 
-    enter_menu();
+    // enter_menu();
 
     update_affine_registers();
     update_mosaic();
@@ -315,8 +336,8 @@ int main(void)
     REG_BG2CNT |= BG_MOSAIC;
 
     // Actually switch
-
-    delayed_switch2gbc();
+    print_switching_info();
+    run_in_VRAM(delayed_switch2gbc, 0x1000);
 
     return 0;
 }
