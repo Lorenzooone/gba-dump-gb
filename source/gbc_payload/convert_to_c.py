@@ -11,5 +11,7 @@ with open(sys.argv[1], "rb") as in_file:
     n += 1
     if n % 8 == 0:
       prod += "\n    "
+    if n == 0x1000:
+      break
 prod += "};"
 print("#include <gba.h>\n#define PAYLOAD_SIZE " + str(n) + "\n" + prod)

@@ -1,6 +1,32 @@
     INCLUDE "hardware.inc"             ; system defines
 
-    SECTION "Start",ROM0[$0]           ; start vector, followed by header data applied by rgbfix.exe
+
+    SECTION "Init", ROM0[$0]
+    xor a
+    ld  [rLCDC],a
+    jp  _VRAM+start
+
+    SECTION "Entrypoint", ROM0[$100]
+    nop
+    jp  launch
+    
+    SECTION "Launcher", ROM0[$150]
+launch:
+    xor a
+    ld  [rLCDC],a
+    ld  hl,$8000
+    ld  de,0
+.copy_to_vram
+    ld  a,[de]
+    inc de
+    ld  [hl+],a
+    ld  a,h
+    cp  a,$90
+    jr  nz,.copy_to_vram
+    jp  _VRAM
+
+
+    SECTION "Start",ROM0[$200]           ; start vector, followed by header data applied by rgbfix.exe
     
 start:
     xor a
@@ -69,17 +95,22 @@ hram_code:
     ld  [rLCDC],a
 .main_loop
 .inner_loop
-    xor a
-    ld  [rIF],a
-    inc a
-    ld  [rIE],a
-.wait_interrupt
-    ld  a,[rIF]
-    and a,$1
-    jr  z,.wait_interrupt
+    ld  hl,$C300
+.set_wram
+    ld  [hl+],a
+    ld  a,l
+    cp  a,$00
+    jr  nz,.set_wram
+    dec h
+    ld  a,h
+    ld  [$FF46],a
+    ld  a,$30
+.wait_transfer
+    dec a
+    jr  nz,.wait_transfer
     
 .render_and_input
-    ld  hl,$9C00
+    ld  h,$9C
     ld  b,$12/2
     push de
 .change_arrangements_row
