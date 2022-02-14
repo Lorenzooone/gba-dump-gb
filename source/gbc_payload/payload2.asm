@@ -8,12 +8,33 @@ rFAIL EQU $0
 rBASE_VAL EQU $10
 rCHECK_VAL EQU $40
 
-    SECTION "Start",ROM0[$0]           ; start vector, followed by header data applied by rgbfix.exe
-    
-start:
+    SECTION "Init", ROM0[$0]
     xor a
     ld  [rLCDC],a
+    jp  _VRAM+start
+
+    SECTION "Entrypoint", ROM0[$100]
+    nop
+    jp  launch
     
+    SECTION "Launcher", ROM0[$150]
+launch:
+    xor a
+    ld  [rLCDC],a
+    ld  hl,$8000
+    ld  de,0
+.copy_to_vram
+    ld  a,[de]
+    inc de
+    ld  [hl+],a
+    ld  a,h
+    cp  a,$90
+    jr  nz,.copy_to_vram
+    jp  _VRAM
+
+    SECTION "Start",ROM0[$200]         ; start vector, followed by header data applied by rgbfix.exe
+    
+start:
     ld  a,$10                          ; read P15 - returns a, b, select, start
     ld  [rP1],a
 .wait_for_a
