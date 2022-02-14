@@ -116,17 +116,6 @@ IWRAM_CODE void delayed_switch2gbc(void)
     {
         iwram_8[i * 4] = gbc_payload[i];
     }
-    iwram_8 = (uint32_t*)0x03004000;
-    for (int i = 0; i < VRAM_SIZE*4; i++)
-    {
-        iwram_8[i] = 0;
-    }
-    
-    uint8_t* wram = (uint32_t*)0x02000000;
-    for (int i = 0; i < VRAM_SIZE*0x40; i++)
-    {
-        wram[i] = 0;
-    }
 
     // VBlank per second about 60
     //for (int i = 0; i < 60 * 10; i++)
