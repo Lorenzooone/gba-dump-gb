@@ -7,7 +7,9 @@
 #include <gba.h>
 
 #include "payload_array.h"
+#define VRAM_SIZE 0x1000
 
+#define REG_VCOUNT *(vu16*)0x04000006
 #define ALWAYS_INLINE __attribute__((always_inline)) static inline
 
 extern void RAM_stub(void);
@@ -32,9 +34,6 @@ ALWAYS_INLINE void SWI_CpuSet(const void *src, void *dst, uint32_t len_mode)
         "r3", "memory"
     );
 }
-
-// BSS is by default in IWRAM
-uint16_t GBC_DISPCNT_VALUE;
 
 void prepare_registers(void)
 {
@@ -88,26 +87,6 @@ void prepare_registers(void)
     REG_SOUNDBIAS = 0xC200; // 6 bit, 262.144kHz
 }
 
-void switch2gbc(void)
-{
-    REG_IME = 0;
-    
-    // Write 0x0408 to DISPCNT = 0x0408: Mode 0, GBC mode enabled, BG2 enabled
-    GBC_DISPCNT_VALUE = 0x0408;
-
-    // GBC mode bit can only be modified from BIOS, like from inside CpuSet()
-    // Copy 1 halfword, 16 bit mode
-    SWI_CpuSet(&GBC_DISPCNT_VALUE, (void *)(REG_BASE + 0), 1);
-    
-    // Normal boot, black screen with jingle
-    //*(vu32*)0x4000800 = 0x0D000000 | 0x20;
-    //SWI_Halt();
-
-    // BIOS swapped boot, white screen  no jingle
-    *(vu32*)0x4000800 = 0x0D000000 | 0x20 | 8;
-    SWI_Halt();
-}
-
 void simpleirq(void)
 {
     REG_IME = 0;
@@ -115,18 +94,32 @@ void simpleirq(void)
     REG_IME = 1;
 }
 
-void delayed_switch2gbc(void)
+IWRAM_CODE void print_switching_info(void)
 {
-    
+    consoleDemoInit();
+    iprintf("Swap cartridges now!\n");
+    iprintf("\n");
+    iprintf("Waiting 10 seconds...\n");
+}
+
+IWRAM_CODE void delayed_switch2gbc(void)
+{    
     REG_IME = 0;
 
     // Write payload to IWRAM
     uint8_t* iwram_8 = (uint32_t*)0x03000000;
-    memset(iwram_8, 0, PAYLOAD_SIZE*4);
+    memset(iwram_8, 0, VRAM_SIZE*4);
     for (int i = 0; i < PAYLOAD_SIZE; i++)
     {
         iwram_8[i * 4] = gbc_payload[i];
     }
+
+    // VBlank per second about 60
+    //for (int i = 0; i < 60 * 10; i++)
+    //{   
+    //    while(REG_VCOUNT >= 160);   // wait till VDraw
+    //    while(REG_VCOUNT < 160);    // wait till VBlank
+    //}
 
     BG_PALETTE[0] = 0x0000;
     BG_PALETTE[1] = 0x7FFF;
@@ -136,5 +129,21 @@ void delayed_switch2gbc(void)
     REG_IE = 0;
     REG_IF = 0xFFFF;
 
-    switch2gbc();
+    REG_IME = 0;
+    
+    // Write 0x0408 to DISPCNT = 0x0408: Mode 0, GBC mode enabled, BG2 enabled
+    uint16_t* GBC_DISPCNT_VALUE = (uint16_t*)0x6007FFC;
+    *GBC_DISPCNT_VALUE = 0x408;
+
+    // GBC mode bit can only be modified from BIOS, like from inside CpuSet()
+    // Copy 1 halfword, 16 bit mode
+    SWI_CpuSet(GBC_DISPCNT_VALUE, (void *)(REG_BASE + 0), 1);
+    
+    // Normal boot, black screen with jingle
+    //*(vu32*)0x4000800 = 0x0D000000 | 0x20;
+    //SWI_Halt();
+
+    // BIOS swapped boot, white screen  no jingle
+    *(vu32*)0x4000800 = 0x0D000000 | 0x20 | 8;
+    SWI_Halt();
 }
