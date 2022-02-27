@@ -105,6 +105,9 @@ start:
     call _VRAM+.send_byte              ; init transfer, ROM
     ld  a,[$0148]
     ld  h,a
+    ld  a,$1F
+    and a,h
+    ld  h,a
 
 .check_mbc1_rom
     xor a
@@ -203,8 +206,9 @@ start:
     ld  a,CART_ROM_MBC2_BAT
     cp  a,b
     jr  c,.check_mbc5_rumble_sram
-    ld  a,$1
+    ld  a,$6
     ld  h,a                            ; MBC2 carts have 0x200 SRAM bytes of 4 bits
+    ld  a,$1
     ld  [$FF82],a
     jr  .transfer_size_sram
     
@@ -654,7 +658,7 @@ DB $00,$01,$02,$04,$08,$10,$20,$40,$80,$00,$00,$00,$00,$00,$00,$00,$00,$00,$12,$
 
     SECTION "SRAM_SIZES",ROM0
 sramSizes:
-DB $FF,$00,$01,$04,$10,$08
+DB $FF,$00,$01,$04,$10,$08,$00
 
     SECTION "Base_Arrangement",ROM0
 emptyTile:
