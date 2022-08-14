@@ -299,6 +299,109 @@ ALWAYS_INLINE void run_in_VRAM(const void *src, uint32_t len_mode)
     );
 }
 
+int multiboot_send(int data) {
+    REG_SIODATA32 = data;
+    REG_SIOCNT |= SIO_START;
+
+    while (REG_SIOCNT & SIO_START) {}
+
+    return REG_SIODATA32;
+}
+
+void wait_fun(int read_value) {
+    int frames;
+    
+    REG_IME = 1;
+    for (frames = 0; frames < 64; ++frames) {
+        VBlankIntrWait();
+    }
+
+    iprintf("Read_value: %d!\n", read_value);
+    
+    REG_IME = 0;
+}
+
+void multiboot (u16* data, u16* end) {
+    int response;
+    u8 clientMask = 0;
+    int attempts, sends, halves;
+    u8 answer, handshake;
+    const u8 palette = 0x81;
+    const int paletteCmd = 0x6300 | palette;
+    MultiBootParam mp;
+
+    REG_RCNT = R_NORMAL;
+    REG_SIOCNT = SIO_32BIT | SIO_CLK_INT;
+
+    for (attempts = 0; attempts < 16; ++attempts) {
+        for (sends = 0; sends < 16; ++sends) {
+            response = multiboot_send(0x6200);
+
+            if ((response & 0xfff0) == 0x7200) clientMask |= (response & 0xf);
+        }
+
+        if (clientMask) {
+            break;
+        }
+        else
+            wait_fun(response);
+    }
+
+    if (!clientMask) {
+        return;
+    }
+    
+    wait_fun(response);
+
+    clientMask &= 0xF;
+    response = multiboot_send(0x6100 | clientMask);
+    if (response != (0x7200 | clientMask))
+        return;
+
+    for (halves = 0; halves < 0x60; ++halves) {
+        response = multiboot_send(*data++);
+        
+        if (response != ((0x60 - halves) << 8 | clientMask))
+            return;
+        
+        wait_fun(response);
+    }
+
+    response = multiboot_send(0x6200);
+    if (response != (clientMask))
+        return;
+
+    response = multiboot_send(0x6200 | clientMask);
+    if (response != (0x7200 | clientMask))
+        return;
+
+    while ((response & 0xFF00) != 0x7300) {
+        response = multiboot_send(paletteCmd);
+        
+        wait_fun(response);
+    }
+    
+    answer = response&0xFF;
+    handshake = 0x11 + 0xFF + 0xFF + answer;
+
+    response = multiboot_send(0x6400 | handshake);
+    if ((response & 0xFF00) != 0x7300)
+        return;
+   
+    wait_fun(response);
+    
+    mp.handshake_data = handshake;
+    mp.client_data[1] = answer;
+    mp.client_data[2] = 0xFF;
+    mp.client_data[2] = 0xFF;
+    mp.palette_data = palette;
+    mp.client_bit = clientMask;
+    mp.boot_srcp = data;
+    mp.boot_endp = end;
+    
+    MultiBoot(&mp, MODE32_NORMAL);
+
+}
 // --------------------------------------------------------------------
 
 int main(void)
@@ -307,13 +410,15 @@ int main(void)
     irqEnable(IRQ_VBLANK);
 
     consoleDemoInit();
+    
+    multiboot((u16*)0x2000000, (u16*)(0x2000000|0x11124));
 
     reset_affine_registers();
     reset_mosaic();
 
     // User configuration menu
 
-    // enter_menu();
+    //enter_menu();
 
     update_affine_registers();
     update_mosaic();

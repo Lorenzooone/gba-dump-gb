@@ -206,5 +206,6 @@ try:
     
     exit_gracefully()
 except:
+    #traceback.print_exc()
     print("Unexpected exception: ", sys.exc_info()[0])
     exit_gracefully()
