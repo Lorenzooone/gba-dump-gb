@@ -300,7 +300,7 @@ ALWAYS_INLINE void run_in_VRAM(const void *src, uint32_t len_mode)
 }
  
 // First listed procedure
-int sio_normal_read(int data) {    
+int sio_normal_slave(int data) {    
     // - Initialize data which is to be sent to master.
     REG_SIODATA32 = data;
     // - Set Start=0 and SO=0 (SO=LOW indicates that slave is (almost) ready).
@@ -319,7 +319,7 @@ int sio_normal_read(int data) {
     return REG_SIODATA32;
 }
 
-int multiboot_send(int data) {
+int sio_normal_master(int data) {
     REG_SIODATA32 = data;
     
     // - Wait for SI to become LOW (slave ready). (Check timeout here!)
@@ -328,21 +328,40 @@ int multiboot_send(int data) {
     REG_SIOCNT |= SIO_START;
     // - Wait for IRQ (or for Start bit to become zero).
     while (REG_SIOCNT & SIO_START);
-    
+    //iprintf("%d!\n", REG_SIODATA32);
     return REG_SIODATA32;
+}
+
+int multiboot_send(int data) {
+    u8 curr_vcount, target_vcount;
+    REG_SIODATA32 = data;
+    
+    // - Wait for communications to continue
+    curr_vcount = REG_VCOUNT;
+    target_vcount = curr_vcount + 2;
+    if(target_vcount >= 0xE4)
+        target_vcount -= 0xE4;
+    while (target_vcount != REG_VCOUNT);
+    
+    // - Set Start flag.
+    REG_SIOCNT |= SIO_START;
+    // - Wait for IRQ (or for Start bit to become zero).
+    while (REG_SIOCNT & SIO_START);
+    //iprintf("%d!\n", REG_SIODATA32);
+    return REG_SIOMULTI1;
 }
 
 void wait_fun(int read_value) {
     int frames;
     
-    REG_IME = 1;
-    for (frames = 0; frames < 64; ++frames) {
-        VBlankIntrWait();
-    }
+    //REG_IME = 1;
+    //for (frames = 0; frames < 64; ++frames) {
+    //    VBlankIntrWait();
+    //}
 
     iprintf("Read_value: %d!\n", read_value);
     
-    REG_IME = 0;
+    //REG_IME = 0;
 }
 
 void multiboot (u16* data, u16* end) {
@@ -362,8 +381,8 @@ void multiboot (u16* data, u16* end) {
     REG_RCNT = R_NORMAL;
     REG_SIOCNT = SIO_32BIT | SIO_CLK_INT;
 
-    for (attempts = 0; attempts < 16; ++attempts) {
-        for (sends = 0; sends < 16; ++sends) {
+    for(attempts = 0; attempts < 16; attempts++) {
+        for (sends = 0; sends < 16; sends++) {
             response = multiboot_send(0x6200);
 
             if ((response & 0xfff0) == 0x7200) clientMask |= (response & 0xf);
@@ -420,15 +439,17 @@ void multiboot (u16* data, u16* end) {
     wait_fun(response);
     
     mp.handshake_data = handshake;
-    mp.client_data[1] = answer;
-    mp.client_data[2] = 0xFF;
+    mp.client_data[0] = answer;
+    mp.client_data[1] = 0xFF;
     mp.client_data[2] = 0xFF;
     mp.palette_data = palette;
     mp.client_bit = clientMask;
     mp.boot_srcp = data;
+    end = (u16*)((((int)end + 0xF) >> 4) << 4);
     mp.boot_endp = end;
     
-    MultiBoot(&mp, MODE32_NORMAL);
+    if(MultiBoot(&mp, MODE32_NORMAL))
+        iprintf("Multiboot Failed! %d\n", REG_SIODATA32);
 
 }
 // --------------------------------------------------------------------
@@ -444,6 +465,9 @@ int main(void)
     while (!(keysDown() & KEY_START)) {scanKeys();}
     
     multiboot((u16*)0x2000000, (u16*)(0x2000000|0x1115C));
+    
+    scanKeys();
+    while (!(keysDown() & KEY_START)) {scanKeys();}
 
     reset_affine_registers();
     reset_mosaic();
