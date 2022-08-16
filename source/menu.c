@@ -298,13 +298,37 @@ ALWAYS_INLINE void run_in_VRAM(const void *src, uint32_t len_mode)
         "bx r1"
     );
 }
+ 
+// First listed procedure
+int sio_normal_read(int data) {    
+    // - Initialize data which is to be sent to master.
+    REG_SIODATA32 = data;
+    // - Set Start=0 and SO=0 (SO=LOW indicates that slave is (almost) ready).
+    REG_SIOCNT &= ~(SIO_START | SIO_SO_HIGH);
+    // - Set Start=1 and SO=1 (SO=HIGH indicates not ready, applied after transfer).
+    //   (Expl. Old SO=LOW kept output until 1st clock bit received).
+    //   (Expl. New SO=HIGH is automatically output at transfer completion).
+    REG_SIOCNT |= SIO_START | SIO_SO_HIGH;
+    // - Set SO to LOW to indicate that master may start now.
+    REG_SIOCNT &= ~SIO_SO_HIGH;
+    // - Wait for IRQ (or for Start bit to become zero). (Check timeout here!)
+    while (REG_SIOCNT & SIO_START);
+    //Stop next transfer
+    REG_SIOCNT |= SIO_SO_HIGH;
+    // - Process received data.
+    return REG_SIODATA32;
+}
 
 int multiboot_send(int data) {
     REG_SIODATA32 = data;
+    
+    // - Wait for SI to become LOW (slave ready). (Check timeout here!)
+    while (REG_SIOCNT & SIO_RDY);
+    // - Set Start flag.
     REG_SIOCNT |= SIO_START;
-
-    while (REG_SIOCNT & SIO_START) {}
-
+    // - Wait for IRQ (or for Start bit to become zero).
+    while (REG_SIOCNT & SIO_START);
+    
     return REG_SIODATA32;
 }
 
@@ -329,6 +353,11 @@ void multiboot (u16* data, u16* end) {
     const u8 palette = 0x81;
     const int paletteCmd = 0x6300 | palette;
     MultiBootParam mp;
+
+    REG_RCNT = R_NORMAL;
+    REG_SIOCNT = SIO_32BIT | SIO_SO_HIGH;
+    
+    //while(1) {wait_fun(sio_normal_read(123456789));}
 
     REG_RCNT = R_NORMAL;
     REG_SIOCNT = SIO_32BIT | SIO_CLK_INT;
@@ -411,7 +440,10 @@ int main(void)
 
     consoleDemoInit();
     
-    multiboot((u16*)0x2000000, (u16*)(0x2000000|0x11124));
+    scanKeys();
+    while (!(keysDown() & KEY_START)) {scanKeys();}
+    
+    multiboot((u16*)0x2000000, (u16*)(0x2000000|0x1115C));
 
     reset_affine_registers();
     reset_mosaic();
