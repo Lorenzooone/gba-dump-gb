@@ -6,7 +6,7 @@
 
 #include <gba.h>
 
-#include "payload_array.h"
+#include "gbc_payload_array.h"
 #define VRAM_SIZE 0x1000
 
 #define REG_VCOUNT *(vu16*)0x04000006
@@ -111,7 +111,7 @@ IWRAM_CODE void delayed_switch2gbc(void)
     memset(iwram_8, 0, VRAM_SIZE*4);
     for (int i = 0; i < PAYLOAD_SIZE; i++)
     {
-        iwram_8[i * 4] = gbc_payload[i];
+        iwram_8[i * 4] = payload[i];
     }
 
     // VBlank per second about 60
