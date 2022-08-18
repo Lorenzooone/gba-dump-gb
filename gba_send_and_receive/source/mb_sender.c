@@ -8,12 +8,36 @@
 #include <gba.h>
 
 #include "multiboot_handler.h"
+#include "sio.h"
 #include "gba_payload_array.h"
 
 // --------------------------------------------------------------------
 
 #define PACKED __attribute__((packed))
 #define ALWAYS_INLINE __attribute__((always_inline)) static inline
+#define NORMAL_BYTE 0x10
+#define CHECK_BYTE 0x40
+#define VCOUNT_TIMEOUT 28
+
+int read_gb_dump_val(int data) {
+    u8 received[2], envelope[2];
+    
+    for(int i = 0; i < 2; i++) {
+        received[i] = timed_sio_normal_master((data & (0xF0 >> (i * 4))) >> (4 - (i * 4)), SIO_8, VCOUNT_TIMEOUT);
+        envelope[i] = received[i] & 0xF0;
+        received[i] = (received[i] & 0xF) << (4 - (i * 4));
+        
+        if ((envelope[i] != NORMAL_BYTE) && (envelope[i] != CHECK_BYTE))
+            return -1;
+    }
+    
+    if (envelope[1] != envelope[0]) {
+        timed_sio_normal_master(0xFF, SIO_8, VCOUNT_TIMEOUT);
+        return -1;
+    }
+    
+    return received[0] | received[1];
+}
 
 void load_menu(void)
 {
@@ -22,42 +46,6 @@ void load_menu(void)
 
     BG_PALETTE[0] = RGB5(0, 0, 0);
     BG_PALETTE[16 * 15 + 1] = RGB5(0, 0, 31);
-}
-
-// First listed procedure
-int sio_normal_slave(int data) {    
-    // - Initialize data which is to be sent to master.
-    REG_SIODATA32 = data;
-    
-    // - Set Start=0 and SO=0 (SO=LOW indicates that slave is (almost) ready).
-    REG_SIOCNT &= ~(SIO_START | SIO_SO_HIGH);
-    // - Set Start=1 and SO=1 (SO=HIGH indicates not ready, applied after transfer).
-    //   (Expl. Old SO=LOW kept output until 1st clock bit received).
-    //   (Expl. New SO=HIGH is automatically output at transfer completion).
-    REG_SIOCNT |= SIO_START | SIO_SO_HIGH;
-    // - Set SO to LOW to indicate that master may start now.
-    REG_SIOCNT &= ~SIO_SO_HIGH;
-    // - Wait for IRQ (or for Start bit to become zero). (Check timeout here!)
-    while (REG_SIOCNT & SIO_START);
-    
-    //Stop next transfer
-    REG_SIOCNT |= SIO_SO_HIGH;
-    
-    // - Process received data.
-    return REG_SIODATA32;
-}
-
-int sio_normal_master(int data) {
-    REG_SIODATA32 = data;
-    
-    // - Wait for SI to become LOW (slave ready). (Check timeout here!)
-    while (REG_SIOCNT & SIO_RDY);
-    // - Set Start flag.
-    REG_SIOCNT |= SIO_START;
-    // - Wait for IRQ (or for Start bit to become zero).
-    while (REG_SIOCNT & SIO_START);
-    
-    return REG_SIODATA32;
 }
 // --------------------------------------------------------------------
 
@@ -75,6 +63,14 @@ int main(void)
     {
         scanKeys();
         while (!(keysDown() & KEY_START)) {scanKeys();}
+        
+        init_sio_normal(SIO_MASTER, SIO_8);
+        int val = 0;
+        while(1) {
+            val = read_gb_dump_val(val);
+            iprintf("Read val: %d\n", val);
+        }
+        
     }
     return 0;
 }

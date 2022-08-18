@@ -1,25 +1,15 @@
 #include <gba.h>
 #include "multiboot_handler.h"
+#include "sio.h"
+
+#define MULTIBOOT_VCOUNTWAIT 2
 
 int multiboot_normal_send(int);
 
 int multiboot_normal_send(int data) {
-    u8 curr_vcount, target_vcount;
-    REG_SIODATA32 = data;
-    
-    // - Wait at least 36 us between sends (this is a bit more, but it works)
-    curr_vcount = REG_VCOUNT;
-    target_vcount = curr_vcount + 2;
-    if(target_vcount >= 0xE4)
-        target_vcount -= 0xE4;
-    while (target_vcount != REG_VCOUNT);
-    
-    // - Set Start flag.
-    REG_SIOCNT |= SIO_START;
-    // - Wait for IRQ (or for Start bit to become zero).
-    while (REG_SIOCNT & SIO_START);
-    
-    return REG_SIOMULTI1;
+    // Only this part of REG_SIODATA32 is used during setup.
+    // The rest is handled by SWI $25
+    return (timed_sio_normal_master(data, SIO_32, MULTIBOOT_VCOUNTWAIT) >> 0x10);
 }
 
 void wait_fun(int read_value, int wait) {
@@ -45,13 +35,7 @@ enum MULTIBOOT_RESULTS multiboot_normal (u16* data, u16* end) {
     const int paletteCmd = 0x6300 | palette;
     MultiBootParam mp;
 
-    //REG_RCNT = R_NORMAL;
-    //REG_SIOCNT = SIO_32BIT | SIO_SO_HIGH;
-    
-    //while(1) {sio_normal_read(123456789);}
-
-    REG_RCNT = R_NORMAL;
-    REG_SIOCNT = SIO_32BIT | SIO_CLK_INT;
+    init_sio_normal(SIO_MASTER, SIO_32);
 
     for(attempts = 0; attempts < 32; attempts++) {
         for (sends = 0; sends < 16; sends++) {
