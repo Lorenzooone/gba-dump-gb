@@ -4,8 +4,6 @@
 void sio_normal_inner_slave(void);
 void sio_normal_inner_master(void);
 
-int multiboot_normal_send(int);
-
 int timed_sio_normal_master(int data, int is_32, int vCountWait) {
     u8 curr_vcount, target_vcount;
     

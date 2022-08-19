@@ -1,26 +1,20 @@
 gba-dump-gb
 =================
 
-Routine to switch a GBA into GBC mode by software and to then dump cartridges' contents through the link cable!
+ROM: gba_send_and_receive/gba_send_and_receive.gba
 
-Switch to GBC mode using gba-switch-to-gbc_mb.gba, then properly insert a cartridge
-and you'll be able to dump either ROM or SRAM of GB/GBC games.
+You need to use a GB (or GBC) Link Cable. GBA Link Cables won't work without modifications.
 
-The results are:
+Homebrew which can multiboot another GBA into GBC Dumping mode by pressing START.
 
-- GBA: It works.
-- GBA SP: It works.
-- GB Micro: Correct boot ROM animation, with sound. Nintendo logo is white,
-  which means the GBC CPU is reading zeroes from the cart instead of data.
-- DS: It doesn't work at all. Black screen. I suppose it hangs in the infinite
-  loop at the end of the code.
-- GB Player: It works.
+It can then get the data from the GBC dumper and put it in its own save file
+by pressing SELECT, when the other device is ready.
+
+Supported save formats: SRAM, FLASH-ROM and inside its own ROM (for certain repro-carts).
 
 To build it, you need devkitPro.
 
 The actual GBA ROM can be built using make_sender.ps1.
-
-make_receiver.ps1 will make a dummy receiver which can be used to test the sender.
 
 Technical details
 =================
