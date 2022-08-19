@@ -104,8 +104,10 @@ void save_to_memory(int size) {
                 keys = keysDown();
             }
             
-            if(keys & KEY_SELECT)
+            if(keys & KEY_SELECT) {
                 completed = 1;
+                iprintf("\x1b[2J");
+            }
             else
                 decided = 0;
         }
