@@ -1,5 +1,6 @@
 #include <gba.h>
 #include "gb_dump_receiver.h"
+#include "free_section.h"
 #include "sio.h"
 
 #define NORMAL_BYTE 0x10
@@ -8,7 +9,7 @@
 #define FLAG_CHECK 0x100
 #define OK_SIGNAL 1
 #define BUFFER_SIZE 0x100
-#define DUMP_POSITION EWRAM
+#define DUMP_POSITION free_section
 #define SRAM_TRANSFER 2
 #define ROM_TRANSFER 1
 
@@ -19,6 +20,10 @@ const u16 sram_banks[] = {0,1,1,4,16,8,1};
 
 int read_gb_dump_val(int);
 int read_sector(u8*, int, int*);
+
+const u8* get_dump_buffer() {
+    return (const u8*)DUMP_POSITION;
+}
 
 int read_dump(int max_size) {
     u8 buffer[BUFFER_SIZE];

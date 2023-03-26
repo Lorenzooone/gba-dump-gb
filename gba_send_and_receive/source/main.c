@@ -68,20 +68,20 @@ void save_to_memory(int size) {
         
         switch (chosen_save_type) {
             case SRAM_SAVE_TYPE:
-                sram_write((u8*)EWRAM, size);
-                copied_properly = is_sram_correct((u8*)EWRAM, size);
+                sram_write((u8*)get_dump_buffer(), size);
+                copied_properly = is_sram_correct((u8*)get_dump_buffer(), size);
                 break;
             case FLASH_64_SAVE_TYPE:
-                flash_write((u8*)EWRAM, size, 0);
-                copied_properly = is_flash_correct((u8*)EWRAM, size, 0);
+                flash_write((u8*)get_dump_buffer(), size, 0);
+                copied_properly = is_flash_correct((u8*)get_dump_buffer(), size, 0);
                 break;
             case FLASH_128_SAVE_TYPE:
-                flash_write((u8*)EWRAM, size, 1);
-                copied_properly = is_flash_correct((u8*)EWRAM, size, 1);
+                flash_write((u8*)get_dump_buffer(), size, 1);
+                copied_properly = is_flash_correct((u8*)get_dump_buffer(), size, 1);
                 break;
             case ROM_SAVE_TYPE:
-                rom_write((u8*)EWRAM, size);
-                copied_properly = is_rom_correct((u8*)EWRAM, size);
+                rom_write((u8*)get_dump_buffer(), size);
+                copied_properly = is_rom_correct((u8*)get_dump_buffer(), size);
             default:
                 break;
         }
